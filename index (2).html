@@ -1,0 +1,1159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GEOTECHNICAL RISK & FAILURE FORECASTING SYSTEM</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;900&family=Share+Tech+Mono&family=Rajdhani:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --cyan:#00f5ff;--cyan-dim:#00b8c4;--cyan-dark:#003d42;
+  --blue:#1a6fff;--blue-dim:#0e4bbf;
+  --green:#00ff88;--green-dim:#00b860;
+  --amber:#ffaa00;--amber-dim:#b87800;
+  --orange:#ff6600;--red:#ff2244;--red-dim:#b81830;
+  --navy:#050d1a;--navy-mid:#071525;--navy-light:#0c1e36;
+  --panel:rgba(6,16,32,0.96);--border:rgba(0,245,255,0.18);
+  --txt:#e8f4ff;--txt2:#7ab8d4;--txt3:#3a6680;
+  --row-even:rgba(0,245,255,0.03);--row-hover:rgba(0,245,255,0.07);
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--navy);color:var(--txt);font-family:'Rajdhani',sans-serif;font-size:13px;
+  background-image:linear-gradient(rgba(0,245,255,0.022) 1px,transparent 1px),
+                   linear-gradient(90deg,rgba(0,245,255,0.022) 1px,transparent 1px);
+  background-size:40px 40px;min-height:100vh;overflow-x:hidden;}
+.scanline{position:fixed;inset:0;pointer-events:none;z-index:9999;
+  background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.022) 2px,rgba(0,0,0,0.022) 4px);}
+
+/* ── HEADER ── */
+.hdr{display:flex;align-items:center;justify-content:space-between;
+  padding:10px 18px;border-bottom:1px solid var(--border);
+  background:rgba(5,13,26,0.98);position:sticky;top:0;z-index:100;}
+.hdr::after{content:'';position:absolute;top:0;left:0;right:0;height:2px;
+  background:linear-gradient(90deg,transparent,var(--cyan),var(--blue),var(--cyan),transparent);
+  animation:hg 3s linear infinite;}
+@keyframes hg{0%{opacity:.4}50%{opacity:1}100%{opacity:.4}}
+.hdr-title{font-family:'Orbitron',monospace;font-size:15px;font-weight:900;color:var(--cyan);
+  text-shadow:0 0 16px rgba(0,245,255,.5);letter-spacing:2px;line-height:1.2;}
+.hdr-sub{font-family:'Orbitron',monospace;font-size:8px;color:var(--txt3);letter-spacing:3px;margin-top:2px;}
+.hdr-right{font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--txt3);text-align:right;line-height:1.9;}
+.hdr-right span{color:var(--cyan);}
+.live-pill{display:flex;align-items:center;gap:5px;padding:3px 10px;
+  border:1px solid var(--green);background:rgba(0,255,136,.07);
+  font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--green);}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--green);
+  box-shadow:0 0 5px var(--green);animation:bk 1.5s infinite;}
+@keyframes bk{0%,100%{opacity:1}50%{opacity:.2}}
+
+/* ── MAIN TABS ── */
+.main-tabs{display:flex;gap:0;border-bottom:1px solid var(--border);
+  background:rgba(5,13,26,0.95);padding:0 18px;}
+.main-tab{padding:10px 22px;font-family:'Orbitron',monospace;font-size:9px;font-weight:700;
+  letter-spacing:2px;cursor:pointer;border:none;border-bottom:2px solid transparent;
+  background:transparent;color:var(--txt3);transition:all .2s;position:relative;top:1px;}
+.main-tab:hover{color:var(--txt2);}
+.main-tab.active{color:var(--cyan);border-bottom-color:var(--cyan);
+  text-shadow:0 0 8px rgba(0,245,255,.4);}
+.page{display:none;} .page.active{display:block;}
+
+/* ── WRAPPER ── */
+.wrap{max-width:1920px;margin:0 auto;padding:12px 16px;}
+
+/* ── SHARED PANEL ── */
+.pnl{background:var(--panel);border:1px solid var(--border);padding:12px;position:relative;overflow:hidden;}
+.pnl::after{content:'';position:absolute;bottom:0;left:0;right:0;height:1px;
+  background:linear-gradient(90deg,transparent,var(--cyan-dim),transparent);opacity:.3;}
+.c-tl,.c-tr,.c-bl,.c-br{position:absolute;width:10px;height:10px;z-index:1;}
+.c-tl{top:0;left:0;border-top:2px solid var(--cyan);border-left:2px solid var(--cyan);}
+.c-tr{top:0;right:0;border-top:2px solid var(--cyan);border-right:2px solid var(--cyan);}
+.c-bl{bottom:0;left:0;border-bottom:2px solid var(--cyan);border-left:2px solid var(--cyan);}
+.c-br{bottom:0;right:0;border-bottom:2px solid var(--cyan);border-right:2px solid var(--cyan);}
+.ptitle{font-family:'Orbitron',monospace;font-size:9px;font-weight:700;letter-spacing:3px;
+  color:var(--cyan);padding-bottom:8px;border-bottom:1px solid rgba(0,245,255,.12);margin-bottom:12px;}
+.sep{height:1px;background:linear-gradient(90deg,transparent,var(--cyan-dark),transparent);opacity:.4;margin:8px 0;}
+
+/* ════════════════════════════════════════════════════════
+   PAGE 1 — DASHBOARD
+════════════════════════════════════════════════════════ */
+.dash-grid{display:grid;grid-template-columns:255px 1fr 275px;gap:10px;min-height:680px;}
+.lp,.rp{display:flex;flex-direction:column;gap:7px;overflow-y:auto;max-height:calc(100vh - 120px);}
+.cp{display:flex;flex-direction:column;gap:9px;}
+.cpnl{flex:1;background:var(--panel);border:1px solid var(--border);padding:9px 11px;position:relative;min-height:0;}
+.ci{position:relative;height:calc(100% - 28px);min-height:100px;}
+
+/* metric blocks */
+.mb{background:rgba(0,245,255,.04);border:1px solid rgba(0,245,255,.12);padding:7px 10px;position:relative;}
+.mb::before{content:'';position:absolute;top:0;left:0;width:3px;height:100%;}
+.mb.c::before{background:var(--cyan);box-shadow:0 0 7px var(--cyan);}
+.mb.o::before{background:var(--orange);box-shadow:0 0 7px var(--orange);}
+.mb.a::before{background:var(--amber);box-shadow:0 0 7px var(--amber);}
+.mb.g::before{background:var(--green);box-shadow:0 0 7px var(--green);}
+.mlbl{font-size:8px;letter-spacing:2px;color:var(--txt3);font-family:'Share Tech Mono',monospace;text-transform:uppercase;margin-bottom:2px;}
+.mval{font-family:'Orbitron',monospace;font-size:20px;font-weight:700;line-height:1;}
+.mb.c .mval{color:var(--cyan);text-shadow:0 0 10px rgba(0,245,255,.5);}
+.mb.o .mval{color:var(--orange);text-shadow:0 0 10px rgba(255,102,0,.5);}
+.mb.a .mval{color:var(--amber);text-shadow:0 0 10px rgba(255,170,0,.5);}
+.mb.g .mval{color:var(--green);text-shadow:0 0 10px rgba(0,255,136,.5);}
+.munit{font-size:10px;color:var(--txt3);margin-left:3px;}
+
+/* gauge */
+.gauge-wrap{padding:7px 10px;border:1px solid rgba(0,245,255,.15);}
+.gb-track{height:8px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);overflow:hidden;}
+.gb-fill{height:100%;background:linear-gradient(90deg,var(--green),var(--amber),var(--orange),var(--red));}
+.gticks{display:flex;justify-content:space-between;font-size:8px;color:var(--txt3);font-family:'Share Tech Mono',monospace;margin-top:2px;}
+
+/* donut */
+.dw{display:flex;gap:8px;align-items:center;}
+.dleg .dli{display:flex;align-items:center;justify-content:space-between;padding:2px 0;border-bottom:1px solid rgba(255,255,255,.05);font-size:10px;}
+.dd{width:7px;height:7px;border-radius:50%;margin-right:5px;flex-shrink:0;}
+.ds-box{background:rgba(0,245,255,.06);border:1px solid var(--cyan-dim);padding:5px 7px;text-align:center;margin-top:5px;}
+
+/* right panel */
+.scen{padding:7px 9px;margin-bottom:4px;}
+.scen.a{background:rgba(0,245,255,.04);border:1px solid rgba(0,245,255,.2);}
+.scen.b{background:rgba(255,170,0,.04);border:1px solid rgba(255,170,0,.2);}
+.scen.c{background:rgba(0,255,136,.04);border:1px solid rgba(0,255,136,.2);}
+.cbar{height:3px;background:rgba(255,255,255,.08);overflow:hidden;}
+.cfill{height:100%;}
+.pgrid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:1px;background:rgba(0,245,255,.1);}
+.pc{background:var(--navy-mid);padding:4px 5px;text-align:center;}
+.pclbl{font-size:8px;color:var(--txt3);font-family:'Share Tech Mono',monospace;}
+.pcval{font-family:'Orbitron',monospace;font-size:12px;font-weight:700;margin-top:1px;}
+.pc.hrow{background:rgba(0,245,255,.06);} .pc.hrow .pclbl{color:var(--cyan);font-size:9px;}
+.pc.prog .pcval{color:var(--amber);} .pc.crit .pcval{color:var(--red);text-shadow:0 0 6px rgba(255,34,68,.4);}
+.fw{background:rgba(0,255,136,.06);border:1px solid rgba(0,255,136,.3);padding:7px 10px;text-align:center;}
+
+/* bottom */
+.bg2{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px;}
+.ins-item,.rec-item{display:flex;align-items:flex-start;gap:5px;padding:4px 0;border-bottom:1px solid rgba(0,245,255,.06);font-size:11px;color:var(--txt2);line-height:1.4;}
+.ins-bul{color:var(--cyan);font-family:'Share Tech Mono',monospace;font-size:12px;flex-shrink:0;}
+.rec-bul{color:var(--amber);font-family:'Share Tech Mono',monospace;font-size:12px;flex-shrink:0;}
+
+/* ════════════════════════════════════════════════════════
+   PAGE 2 — INPUT DATA
+════════════════════════════════════════════════════════ */
+.sub-tabs{display:flex;gap:2px;margin-bottom:12px;}
+.stab{padding:7px 18px;font-family:'Orbitron',monospace;font-size:8px;font-weight:700;
+  letter-spacing:2px;cursor:pointer;border:1px solid var(--border);
+  background:var(--navy-mid);color:var(--txt3);transition:all .2s;}
+.stab.active{background:rgba(0,245,255,.1);border-color:var(--cyan);color:var(--cyan);text-shadow:0 0 8px rgba(0,245,255,.4);}
+.stab:hover:not(.active){background:rgba(0,245,255,.04);color:var(--txt2);}
+.sub-content{display:none;} .sub-content.active{display:block;}
+
+/* stats bar */
+.stats-bar{display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:8px;margin-bottom:12px;}
+.stat{background:rgba(0,245,255,.04);border:1px solid rgba(0,245,255,.1);padding:9px 11px;position:relative;}
+.stat::before{content:'';position:absolute;top:0;left:0;width:3px;height:100%;}
+.stat.sc::before{background:var(--cyan);box-shadow:0 0 6px var(--cyan);}
+.stat.so::before{background:var(--orange);box-shadow:0 0 6px var(--orange);}
+.stat.sa::before{background:var(--amber);box-shadow:0 0 6px var(--amber);}
+.stat.sg::before{background:var(--green);box-shadow:0 0 6px var(--green);}
+.stat.sr::before{background:var(--red);box-shadow:0 0 6px var(--red);}
+.stat-lbl{font-size:8px;letter-spacing:2px;color:var(--txt3);font-family:'Share Tech Mono',monospace;margin-bottom:2px;}
+.stat-val{font-family:'Orbitron',monospace;font-size:17px;font-weight:700;line-height:1;}
+.stat.sc .stat-val{color:var(--cyan);}
+.stat.so .stat-val{color:var(--orange);}
+.stat.sa .stat-val{color:var(--amber);}
+.stat.sg .stat-val{color:var(--green);}
+.stat.sr .stat-val{color:var(--red);}
+
+/* form */
+.form-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(195px,1fr));gap:9px;margin-bottom:12px;}
+.fg{display:flex;flex-direction:column;gap:4px;}
+.fg label{font-size:8px;letter-spacing:2px;color:var(--txt3);font-family:'Share Tech Mono',monospace;text-transform:uppercase;}
+.fg input,.fg select,.fg textarea{background:rgba(0,245,255,.04);border:1px solid rgba(0,245,255,.18);
+  color:var(--txt);font-family:'Share Tech Mono',monospace;font-size:12px;padding:7px 9px;outline:none;transition:border-color .2s;width:100%;}
+.fg input:focus,.fg select:focus,.fg textarea:focus{border-color:var(--cyan);box-shadow:0 0 8px rgba(0,245,255,.12);}
+.fg input::placeholder{color:var(--txt3);}
+.fg select option{background:#071525;color:var(--txt);}
+.fg .hint{font-size:8px;color:var(--txt3);font-family:'Share Tech Mono',monospace;line-height:1.4;}
+.preview-box{background:rgba(0,245,255,.04);border:1px solid rgba(0,245,255,.12);
+  padding:9px 11px;margin-bottom:11px;display:none;}
+
+/* buttons */
+.btn{padding:7px 16px;font-family:'Orbitron',monospace;font-size:8px;font-weight:700;
+  letter-spacing:2px;cursor:pointer;border:1px solid;transition:all .2s;white-space:nowrap;}
+.btn-c{background:rgba(0,245,255,.1);border-color:var(--cyan);color:var(--cyan);}
+.btn-c:hover{background:rgba(0,245,255,.2);box-shadow:0 0 12px rgba(0,245,255,.2);}
+.btn-g{background:rgba(0,255,136,.08);border-color:var(--green);color:var(--green);}
+.btn-g:hover{background:rgba(0,255,136,.18);}
+.btn-r{background:rgba(255,34,68,.07);border-color:var(--red);color:var(--red);}
+.btn-r:hover{background:rgba(255,34,68,.16);}
+.btn-a{background:rgba(255,170,0,.07);border-color:var(--amber);color:var(--amber);}
+.btn-a:hover{background:rgba(255,170,0,.16);}
+.btn-sm{padding:4px 9px;font-size:7px;}
+.btn:active{transform:scale(.97);}
+.btn:disabled{opacity:.4;cursor:not-allowed;}
+.btn-row{display:flex;gap:7px;flex-wrap:wrap;margin-top:4px;}
+
+/* table */
+.tbl-wrap{overflow-x:auto;}
+.tbl-wrap::-webkit-scrollbar{height:4px;}
+.tbl-wrap::-webkit-scrollbar-thumb{background:var(--cyan-dark);}
+table{width:100%;border-collapse:collapse;font-family:'Share Tech Mono',monospace;font-size:11px;}
+thead tr{background:rgba(0,245,255,.07);border-bottom:1px solid rgba(0,245,255,.2);}
+th{padding:7px 9px;font-family:'Orbitron',monospace;font-size:7px;font-weight:700;
+  letter-spacing:2px;color:var(--cyan);text-align:left;white-space:nowrap;}
+tbody tr{border-bottom:1px solid rgba(0,245,255,.05);transition:background .15s;}
+tbody tr:nth-child(even){background:var(--row-even);}
+tbody tr:hover{background:var(--row-hover);}
+td{padding:5px 9px;color:var(--txt2);white-space:nowrap;vertical-align:middle;}
+td.num{color:var(--cyan);}td.tvel{color:var(--orange);}td.tiv{color:var(--amber);}
+.badge{display:inline-block;padding:2px 6px;font-size:8px;font-family:'Share Tech Mono',monospace;letter-spacing:1px;}
+.bs1{background:rgba(0,255,136,.1);border:1px solid rgba(0,255,136,.3);color:var(--green);}
+.bs2{background:rgba(26,111,255,.1);border:1px solid rgba(26,111,255,.3);color:var(--blue);}
+.bs3{background:rgba(255,170,0,.1);border:1px solid rgba(255,170,0,.3);color:var(--amber);}
+.bs4{background:rgba(255,34,68,.1);border:1px solid rgba(255,34,68,.3);color:var(--red);}
+.blow{background:rgba(0,255,136,.1);border:1px solid rgba(0,255,136,.3);color:var(--green);}
+.bmod{background:rgba(26,111,255,.1);border:1px solid rgba(26,111,255,.3);color:var(--blue);}
+.bhigh{background:rgba(255,170,0,.1);border:1px solid rgba(255,170,0,.3);color:var(--amber);}
+.bcrit{background:rgba(255,34,68,.1);border:1px solid rgba(255,34,68,.3);color:var(--red);}
+
+/* chart */
+.chart-grid-2{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;}
+.cbox{background:var(--panel);border:1px solid var(--border);padding:11px;position:relative;}
+.cbox::before{content:'';position:absolute;top:0;left:0;width:8px;height:8px;border-top:2px solid var(--cyan);border-left:2px solid var(--cyan);}
+.cbox::after{content:'';position:absolute;bottom:0;right:0;width:8px;height:8px;border-bottom:2px solid var(--cyan);border-right:2px solid var(--cyan);}
+.ctitle{font-family:'Orbitron',monospace;font-size:8px;font-weight:700;letter-spacing:2px;color:var(--cyan);margin-bottom:8px;}
+.ci2{height:190px;position:relative;}
+
+/* import */
+.drop-zone{border:2px dashed rgba(0,245,255,.22);padding:28px;text-align:center;
+  background:rgba(0,245,255,.02);cursor:pointer;transition:all .2s;}
+.drop-zone:hover,.drop-zone.dragover{border-color:var(--cyan);background:rgba(0,245,255,.07);}
+.drop-zone-icon{font-size:32px;color:var(--cyan-dim);margin-bottom:8px;}
+.drop-zone-txt{font-size:13px;color:var(--txt2);}
+.drop-zone-sub{font-size:10px;color:var(--txt3);margin-top:3px;font-family:'Share Tech Mono',monospace;}
+
+/* toast */
+.toast{position:fixed;bottom:22px;right:22px;z-index:20000;padding:9px 16px;
+  border:1px solid;font-family:'Share Tech Mono',monospace;font-size:11px;
+  background:var(--navy-mid);transform:translateX(120%);transition:transform .3s;}
+.toast.show{transform:translateX(0);}
+.tok{border-color:var(--green);color:var(--green);}.terr{border-color:var(--red);color:var(--red);}
+.tinf{border-color:var(--cyan);color:var(--cyan);}
+
+/* modal */
+.modal-bg{position:fixed;inset:0;background:rgba(5,13,26,.85);z-index:10001;display:none;align-items:center;justify-content:center;}
+.modal-bg.open{display:flex;}
+.modal{background:var(--navy-light);border:1px solid var(--border);padding:22px 26px;min-width:300px;}
+.modal h3{font-family:'Orbitron',monospace;font-size:11px;color:var(--cyan);letter-spacing:2px;margin-bottom:10px;}
+.modal p{font-size:12px;color:var(--txt2);line-height:1.6;margin-bottom:16px;}
+.modal-btns{display:flex;gap:8px;justify-content:flex-end;}
+
+/* sync badge */
+.sync-note{font-size:9px;font-family:'Share Tech Mono',monospace;color:var(--green);
+  background:rgba(0,255,136,.08);border:1px solid rgba(0,255,136,.25);
+  padding:3px 8px;display:inline-block;margin-bottom:8px;}
+
+::-webkit-scrollbar{width:4px;height:4px;}
+::-webkit-scrollbar-track{background:var(--navy);}
+::-webkit-scrollbar-thumb{background:var(--cyan-dark);border-radius:2px;}
+</style>
+</head>
+<body>
+<div class="scanline"></div>
+
+<!-- ════ HEADER ════ -->
+<div class="hdr">
+  <div>
+    <div class="hdr-title">◈ GEOTECHNICAL RISK &amp; FAILURE FORECASTING SYSTEM</div>
+    <div class="hdr-sub">SLOPE MONITORING — RADAR_ALPHA_01 &nbsp;|&nbsp; INTEGRATED PLATFORM</div>
+  </div>
+  <div class="live-pill"><div class="dot"></div>LIVE</div>
+  <div class="hdr-right">DATE: <span id="hdr-date">--</span><br>TIME: <span id="hdr-time">--:--:--</span><br>RECORDS: <span id="hdr-count">0</span></div>
+</div>
+
+<!-- ════ MAIN TABS ════ -->
+<div class="main-tabs">
+  <button class="main-tab active" onclick="switchMain('dashboard')">◈ MONITORING DASHBOARD</button>
+  <button class="main-tab" onclick="switchMain('input')">◈ INPUT DATA</button>
+</div>
+
+<!-- ════════════════════════════════════════════════════════
+     PAGE 1 — DASHBOARD
+════════════════════════════════════════════════════════ -->
+<div id="page-dashboard" class="page active">
+<div class="wrap">
+
+  <!-- MAIN GRID -->
+  <div class="dash-grid" style="margin-bottom:10px;">
+
+    <!-- LEFT -->
+    <div class="lp pnl">
+      <div class="c-tl"></div><div class="c-tr"></div><div class="c-bl"></div><div class="c-br"></div>
+      <div class="ptitle">◈ CURRENT STATUS</div>
+
+      <div class="mb c"><div class="mlbl">CUMULATIVE DISPLACEMENT</div>
+        <div class="mval" id="d-disp">—<span class="munit">mm</span></div>
+        <div style="font-size:9px;color:var(--txt3);font-family:'Share Tech Mono',monospace;margin-top:2px;" id="d-disp2"></div>
+      </div>
+      <div class="mb o"><div class="mlbl">CURRENT VELOCITY</div><div class="mval" id="d-vel">—<span class="munit">mm/h</span></div></div>
+      <div class="mb a"><div class="mlbl">INVERSE VELOCITY</div><div class="mval" id="d-iv">—<span class="munit">h/mm</span></div></div>
+
+      <div class="sep"></div>
+
+      <div id="d-status-box" style="padding:7px 10px;border:1px solid rgba(0,255,136,.3);background:rgba(0,255,136,.05);">
+        <div class="mlbl">DEFORMATION STATUS</div>
+        <div id="d-status-txt" style="font-family:'Orbitron',monospace;font-size:11px;font-weight:700;letter-spacing:1px;color:var(--green);">—</div>
+        <div id="d-status-desc" style="font-size:10px;color:var(--txt2);margin-top:3px;line-height:1.4;"></div>
+      </div>
+
+      <div class="gauge-wrap">
+        <div class="mlbl" style="margin-bottom:5px;">RISK LEVEL</div>
+        <div class="gb-track"><div class="gb-fill" id="d-gauge" style="width:15%;"></div></div>
+        <div class="gticks"><span>LOW</span><span>MOD</span><span>HIGH</span><span>CRIT</span></div>
+        <div style="text-align:center;margin-top:3px;">
+          <span id="d-risk-lbl" style="font-family:'Orbitron',monospace;font-size:11px;font-weight:700;letter-spacing:2px;color:var(--green);">—</span>
+        </div>
+      </div>
+
+      <div style="background:rgba(0,255,136,.06);border:1px solid rgba(0,255,136,.22);padding:7px 10px;">
+        <div class="mlbl">FAILURE PROBABILITY</div>
+        <div id="d-prob" style="font-family:'Orbitron',monospace;font-size:26px;font-weight:900;color:var(--green);text-shadow:0 0 14px rgba(0,255,136,.4);">—</div>
+        <div style="font-size:9px;color:var(--txt3);font-family:'Share Tech Mono',monospace;margin-top:1px;">WITHIN 12H WINDOW</div>
+      </div>
+
+      <div class="sep"></div>
+      <div class="ptitle" style="margin-top:2px;">◈ STATE DISTRIBUTION</div>
+      <div class="dw">
+        <canvas id="d-donut" width="86" height="86"></canvas>
+        <div class="dleg" style="flex:1;">
+          <div class="dli"><div style="display:flex;align-items:center;"><div class="dd" style="background:#00ff88;"></div><span style="color:var(--txt2);flex:1;font-size:10px;">S1 Stable</span></div><span id="dp-s1" style="font-family:'Share Tech Mono',monospace;font-size:11px;color:#00ff88;">—</span></div>
+          <div class="dli"><div style="display:flex;align-items:center;"><div class="dd" style="background:#1a6fff;"></div><span style="color:var(--txt2);flex:1;font-size:10px;">S2 Lin.Creep</span></div><span id="dp-s2" style="font-family:'Share Tech Mono',monospace;font-size:11px;color:#1a6fff;">—</span></div>
+          <div class="dli"><div style="display:flex;align-items:center;"><div class="dd" style="background:#ffaa00;"></div><span style="color:var(--txt2);flex:1;font-size:10px;">S3 Progressive</span></div><span id="dp-s3" style="font-family:'Share Tech Mono',monospace;font-size:11px;color:#ffaa00;">—</span></div>
+          <div class="dli"><div style="display:flex;align-items:center;"><div class="dd" style="background:#ff2244;"></div><span style="color:var(--txt2);flex:1;font-size:10px;">S4 Critical</span></div><span id="dp-s4" style="font-family:'Share Tech Mono',monospace;font-size:11px;color:#ff2244;">—</span></div>
+        </div>
+      </div>
+      <div class="ds-box">
+        <div style="font-size:8px;letter-spacing:2px;color:var(--txt3);font-family:'Share Tech Mono',monospace;">DOMINANT STATE</div>
+        <div id="d-dominant" style="font-family:'Orbitron',monospace;font-size:10px;font-weight:700;letter-spacing:2px;color:var(--blue);margin-top:2px;">—</div>
+      </div>
+      <div style="font-size:8px;font-family:'Share Tech Mono',monospace;color:var(--txt3);text-align:center;margin-top:4px;" id="d-datainfo"></div>
+    </div>
+
+    <!-- CENTER -->
+    <div class="cp">
+      <div class="cpnl" style="flex:2.2;">
+        <div class="c-tl"></div><div class="c-tr"></div><div class="c-bl"></div><div class="c-br"></div>
+        <div class="ptitle">◈ CUMULATIVE DISPLACEMENT vs VELOCITY vs TIME</div>
+        <div class="ci"><canvas id="d-c1"></canvas></div>
+      </div>
+      <div class="cpnl" style="flex:2;">
+        <div class="c-tl"></div><div class="c-tr"></div><div class="c-bl"></div><div class="c-br"></div>
+        <div class="ptitle">◈ INVERSE VELOCITY vs TIME — FAILURE EXTRAPOLATION</div>
+        <div class="ci"><canvas id="d-c2"></canvas></div>
+      </div>
+      <div class="cpnl" style="flex:1.3;">
+        <div class="c-tl"></div><div class="c-tr"></div><div class="c-bl"></div><div class="c-br"></div>
+        <div class="ptitle">◈ ACCELERATION vs TIME</div>
+        <div class="ci"><canvas id="d-c3"></canvas></div>
+      </div>
+    </div>
+
+    <!-- RIGHT -->
+    <div class="rp pnl">
+      <div class="c-tl"></div><div class="c-tr"></div><div class="c-bl"></div><div class="c-br"></div>
+      <div class="ptitle">◈ FAILURE TIME PREDICTION</div>
+      <div style="font-size:8px;letter-spacing:2px;color:var(--txt3);font-family:'Share Tech Mono',monospace;margin-bottom:8px;">INVERSE VELOCITY EXTRAPOLATION</div>
+
+      <div class="scen a">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;">
+          <span style="font-family:'Orbitron',monospace;font-size:10px;font-weight:700;color:var(--cyan);letter-spacing:2px;">SCENARIO A</span>
+          <span style="font-size:8px;font-family:'Share Tech Mono',monospace;color:var(--txt3);">IV ≥ 0.10</span>
+        </div>
+        <div id="sc-a-time" style="font-family:'Orbitron',monospace;font-size:12px;color:var(--amber);margin:2px 0;">—</div>
+        <div id="sc-a-conf" style="font-size:9px;color:var(--txt2);font-family:'Share Tech Mono',monospace;margin-bottom:3px;">—</div>
+        <div class="cbar"><div class="cfill" id="sc-a-bar" style="background:var(--cyan);width:0%;"></div></div>
+      </div>
+
+      <div class="scen b">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;">
+          <span style="font-family:'Orbitron',monospace;font-size:10px;font-weight:700;color:var(--amber);letter-spacing:2px;">SCENARIO B</span>
+          <span style="font-size:8px;font-family:'Share Tech Mono',monospace;color:var(--txt3);">IV ≥ 0.05</span>
+        </div>
+        <div id="sc-b-time" style="font-family:'Orbitron',monospace;font-size:12px;color:var(--amber);margin:2px 0;">—</div>
+        <div id="sc-b-conf" style="font-size:9px;color:var(--txt2);font-family:'Share Tech Mono',monospace;margin-bottom:3px;">—</div>
+        <div class="cbar"><div class="cfill" id="sc-b-bar" style="background:var(--amber);width:0%;"></div></div>
+      </div>
+
+      <div class="scen c">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;">
+          <span style="font-family:'Orbitron',monospace;font-size:10px;font-weight:700;color:var(--green);letter-spacing:2px;">SCENARIO C</span>
+          <span style="font-size:8px;font-family:'Share Tech Mono',monospace;color:var(--txt3);">RE-ACTIVATION</span>
+        </div>
+        <div id="sc-c-time" style="font-family:'Orbitron',monospace;font-size:12px;color:var(--green);margin:2px 0;">—</div>
+        <div id="sc-c-conf" style="font-size:9px;color:var(--txt2);font-family:'Share Tech Mono',monospace;margin-bottom:3px;">—</div>
+        <div class="cbar"><div class="cfill" id="sc-c-bar" style="background:var(--green);width:0%;"></div></div>
+      </div>
+
+      <div class="sep"></div>
+      <div class="ptitle" style="margin-top:2px;">◈ COMBINED RISK PROBABILITY</div>
+      <div class="pgrid" style="margin-bottom:6px;">
+        <div class="pc hrow"><div class="pclbl">WINDOW</div></div>
+        <div class="pc hrow"><div class="pclbl">PROGRESSIVE</div></div>
+        <div class="pc hrow"><div class="pclbl">CRITICAL</div></div>
+        <div class="pc"><div class="pclbl">3H</div></div>
+        <div class="pc prog"><div class="pcval" id="p3prog">—</div></div>
+        <div class="pc crit"><div class="pcval" id="p3crit">—</div></div>
+        <div class="pc"><div class="pclbl">6H</div></div>
+        <div class="pc prog"><div class="pcval" id="p6prog">—</div></div>
+        <div class="pc crit"><div class="pcval" id="p6crit">—</div></div>
+        <div class="pc"><div class="pclbl">12H</div></div>
+        <div class="pc prog"><div class="pcval" id="p12prog">—</div></div>
+        <div class="pc crit"><div class="pcval" id="p12crit">—</div></div>
+      </div>
+      <div class="fw">
+        <div style="font-size:8px;letter-spacing:2px;color:var(--txt3);font-family:'Share Tech Mono',monospace;">ESTIMATED FAILURE WINDOW</div>
+        <div id="d-fw" style="font-family:'Orbitron',monospace;font-size:10px;font-weight:700;color:var(--green);text-shadow:0 0 10px rgba(0,255,136,.4);margin-top:2px;letter-spacing:1px;">—</div>
+      </div>
+    </div>
+  </div><!-- /dash-grid -->
+
+  <!-- BOTTOM -->
+  <div class="bg2">
+    <div class="pnl" style="padding:11px;">
+      <div class="c-tl"></div><div class="c-tr"></div><div class="c-bl"></div><div class="c-br"></div>
+      <div class="ptitle">◈ KEY INSIGHTS</div>
+      <div id="d-insights"></div>
+    </div>
+    <div class="pnl" style="padding:11px;">
+      <div class="c-tl"></div><div class="c-tr"></div><div class="c-bl"></div><div class="c-br"></div>
+      <div class="ptitle" style="color:var(--amber);">◈ RECOMMENDATIONS</div>
+      <div id="d-recs"></div>
+    </div>
+  </div>
+
+</div><!-- /wrap -->
+</div><!-- /page-dashboard -->
+
+<!-- ════════════════════════════════════════════════════════
+     PAGE 2 — INPUT DATA
+════════════════════════════════════════════════════════ -->
+<div id="page-input" class="page">
+<div class="wrap">
+
+  <!-- LIVE STATS -->
+  <div class="stats-bar">
+    <div class="stat sc"><div class="stat-lbl">CUMULATIVE DISP</div><div class="stat-val" id="s-disp">—<span style="font-size:10px;color:var(--txt3);margin-left:2px;">mm</span></div></div>
+    <div class="stat so"><div class="stat-lbl">VELOCITY</div><div class="stat-val" id="s-vel">—<span style="font-size:10px;color:var(--txt3);margin-left:2px;">mm/h</span></div></div>
+    <div class="stat sa"><div class="stat-lbl">INVERSE VELOCITY</div><div class="stat-val" id="s-iv">—<span style="font-size:10px;color:var(--txt3);margin-left:2px;">h/mm</span></div></div>
+    <div class="stat sg"><div class="stat-lbl">STATE</div><div class="stat-val" id="s-state" style="font-size:13px;">—</div></div>
+    <div class="stat sr"><div class="stat-lbl">TOTAL RECORDS</div><div class="stat-val" id="s-rows">0</div></div>
+  </div>
+
+  <div class="sync-note">◈ Data input otomatis tersinkron ke Dashboard — refresh dashboard untuk melihat perubahan</div>
+
+  <!-- SUB TABS -->
+  <div class="sub-tabs">
+    <button class="stab active" onclick="switchSub('form')">◈ INPUT BARIS</button>
+    <button class="stab" onclick="switchSub('batch')">◈ BATCH / PASTE</button>
+    <button class="stab" onclick="switchSub('table')">◈ DATA TABLE</button>
+    <button class="stab" onclick="switchSub('chart')">◈ LIVE CHARTS</button>
+    <button class="stab" onclick="switchSub('io')">◈ IMPORT / EXPORT</button>
+  </div>
+
+  <!-- SUB 1: FORM -->
+  <div id="sub-form" class="sub-content active">
+    <div class="pnl">
+      <div class="ptitle">◈ TAMBAH DATA BARU</div>
+      <div class="form-grid">
+        <div class="fg" style="grid-column:span 2;">
+          <label>TIMESTAMP</label>
+          <input type="datetime-local" id="f-ts" step="1">
+        </div>
+        <div class="fg">
+          <label>CUMULATIVE DISPLACEMENT (mm)</label>
+          <input type="number" id="f-disp" placeholder="e.g. 142.6" step="0.001" min="0">
+        </div>
+        <div class="fg">
+          <label>INCREMENTAL DISPLACEMENT (mm)</label>
+          <input type="number" id="f-incr" placeholder="auto-calc" step="0.001">
+          <span class="hint">Kosong → auto hitung dari Δcumulative</span>
+        </div>
+        <div class="fg">
+          <label>VELOCITY (mm/h)</label>
+          <input type="number" id="f-vel" placeholder="auto-calc" step="0.0001">
+          <span class="hint">Kosong → auto hitung dari Δdisp/Δt</span>
+        </div>
+        <div class="fg">
+          <label>ACCELERATION (mm/h²)</label>
+          <input type="number" id="f-accel" placeholder="auto-calc" step="0.00001">
+        </div>
+        <div class="fg">
+          <label>DEFORMATION STATE</label>
+          <select id="f-state">
+            <option value="">Auto (dari IV)</option>
+            <option value="S1">S1 — Stable</option>
+            <option value="S2">S2 — Linear Creep</option>
+            <option value="S3">S3 — Progressive</option>
+            <option value="S4">S4 — Critical</option>
+          </select>
+        </div>
+        <div class="fg">
+          <label>RISK LEVEL</label>
+          <select id="f-risk">
+            <option value="">Auto (dari state)</option>
+            <option value="LOW">LOW</option>
+            <option value="MOD">MODERATE</option>
+            <option value="HIGH">HIGH</option>
+            <option value="CRIT">CRITICAL</option>
+          </select>
+        </div>
+        <div class="fg" style="grid-column:span 2;">
+          <label>NOTES / EVENT FLAG</label>
+          <input type="text" id="f-notes" placeholder="e.g. Rain 42mm, Blast event, Inspection...">
+        </div>
+      </div>
+      <div id="form-preview" class="preview-box">
+        <div style="font-size:8px;letter-spacing:2px;color:var(--cyan);font-family:'Share Tech Mono',monospace;margin-bottom:5px;">PREVIEW ROW</div>
+        <div id="preview-content" style="font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--txt2);line-height:1.8;"></div>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-c" onclick="previewRow()">◎ PREVIEW</button>
+        <button class="btn btn-g" onclick="addRow()">✚ TAMBAH</button>
+        <button class="btn btn-a" onclick="setNow()">⏱ WAKTU SEKARANG</button>
+        <button class="btn btn-r btn-sm" onclick="clearForm()">✕ CLEAR</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SUB 2: BATCH -->
+  <div id="sub-batch" class="sub-content">
+    <div class="pnl">
+      <div class="ptitle">◈ BATCH INPUT — PASTE TEXT</div>
+      <div style="font-size:11px;color:var(--txt3);font-family:'Share Tech Mono',monospace;margin-bottom:8px;line-height:1.7;">
+        Format: <span style="color:var(--cyan);">YYYY-MM-DD HH:MM:SS, CumDisp, [IncrDisp], [Vel], [State], [Notes]</span><br>
+        Satu baris = satu data point. Kolom dalam kurung bisa dikosongkan (auto-calc).
+      </div>
+      <textarea id="batch-input" placeholder="2026-05-25 10:00:00, 142.6&#10;2026-05-25 10:30:00, 145.0&#10;2026-05-25 11:00:00, 148.2, , , , Rain 10mm&#10;2026-05-25 11:30:00, 152.1" style="width:100%;height:120px;background:rgba(0,245,255,.03);border:1px solid rgba(0,245,255,.14);color:var(--txt);font-family:'Share Tech Mono',monospace;font-size:11px;padding:10px;outline:none;resize:vertical;"></textarea>
+      <div class="btn-row" style="margin-top:8px;">
+        <button class="btn btn-g" onclick="parseBatch()">✚ IMPORT BATCH</button>
+        <button class="btn btn-r btn-sm" onclick="document.getElementById('batch-input').value=''">✕ CLEAR</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SUB 3: TABLE -->
+  <div id="sub-table" class="sub-content">
+    <div class="pnl" style="padding-bottom:0;">
+      <div class="ptitle" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;">
+        <span>◈ DATA TABLE</span>
+        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+          <input type="text" id="search-input" placeholder="Search..." onkeyup="renderTable()" style="width:180px;padding:4px 8px;font-size:11px;background:rgba(0,245,255,.05);border:1px solid rgba(0,245,255,.18);color:var(--txt);font-family:'Share Tech Mono',monospace;outline:none;">
+          <select id="filter-state" onchange="renderTable()" style="padding:4px 8px;font-size:11px;background:rgba(0,245,255,.05);border:1px solid rgba(0,245,255,.18);color:var(--txt);font-family:'Share Tech Mono',monospace;outline:none;">
+            <option value="">All States</option><option value="S1">S1</option><option value="S2">S2</option><option value="S3">S3</option><option value="S4">S4</option>
+          </select>
+          <button class="btn btn-r btn-sm" onclick="confirmClearAll()">⚠ CLEAR ALL</button>
+        </div>
+      </div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr>
+            <th>#</th><th>TIMESTAMP</th><th>CUM DISP (mm)</th><th>INCR DISP (mm)</th>
+            <th>VEL (mm/h)</th><th>ACCEL (mm/h²)</th><th>IV (h/mm)</th>
+            <th>STATE</th><th>RISK</th><th>NOTES</th><th>DEL</th>
+          </tr></thead>
+          <tbody id="table-body"><tr><td colspan="11"><div style="text-align:center;padding:30px 20px;color:var(--txt3);font-family:'Share Tech Mono',monospace;font-size:11px;">◎ Belum ada data.</div></td></tr></tbody>
+        </table>
+      </div>
+      <div style="padding:7px 0;display:flex;justify-content:space-between;align-items:center;font-size:10px;color:var(--txt3);font-family:'Share Tech Mono',monospace;">
+        <span id="table-info">0 rows</span>
+        <div style="display:flex;gap:5px;">
+          <button class="btn btn-c btn-sm" id="prev-pg" onclick="changePage(-1)" disabled>◄</button>
+          <span id="page-info" style="padding:4px 8px;border:1px solid rgba(0,245,255,.1);font-size:10px;color:var(--cyan);">1/1</span>
+          <button class="btn btn-c btn-sm" id="next-pg" onclick="changePage(1)" disabled>►</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SUB 4: CHARTS -->
+  <div id="sub-chart" class="sub-content">
+    <div class="pnl" style="margin-bottom:10px;">
+      <div class="ptitle">◈ CHART CONTROLS</div>
+      <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;">
+        <div class="fg" style="min-width:160px;">
+          <label>TAMPILKAN</label>
+          <select id="chart-range" onchange="updateInputCharts()">
+            <option value="20">20 Data Terakhir</option>
+            <option value="50">50 Data Terakhir</option>
+            <option value="100">100 Data Terakhir</option>
+            <option value="0" selected>Semua Data</option>
+          </select>
+        </div>
+        <button class="btn btn-c btn-sm" onclick="updateInputCharts()">⟳ REFRESH</button>
+      </div>
+    </div>
+    <div class="chart-grid-2">
+      <div class="cbox"><div class="ctitle">◈ CUMULATIVE DISPLACEMENT</div><div class="ci2"><canvas id="ic-disp"></canvas></div></div>
+      <div class="cbox"><div class="ctitle">◈ VELOCITY vs TIME</div><div class="ci2"><canvas id="ic-vel"></canvas></div></div>
+      <div class="cbox"><div class="ctitle">◈ INVERSE VELOCITY vs TIME</div><div class="ci2"><canvas id="ic-iv"></canvas></div></div>
+      <div class="cbox"><div class="ctitle">◈ ACCELERATION vs TIME</div><div class="ci2"><canvas id="ic-accel"></canvas></div></div>
+    </div>
+    <div id="chart-empty-msg" style="display:none;text-align:center;padding:40px;color:var(--txt3);font-family:'Share Tech Mono',monospace;font-size:11px;">◎ Tambahkan minimal 2 data point.</div>
+  </div>
+
+  <!-- SUB 5: IMPORT/EXPORT -->
+  <div id="sub-io" class="sub-content">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+      <div class="pnl">
+        <div class="ptitle">◈ EXPORT DATA</div>
+        <div style="font-size:11px;color:var(--txt2);margin-bottom:12px;line-height:1.6;">Export semua data ke CSV (Excel-ready) atau JSON (backup).</div>
+        <div style="display:flex;flex-direction:column;gap:7px;">
+          <button class="btn btn-g" onclick="exportCSV()">↓ EXPORT CSV</button>
+          <button class="btn btn-c" onclick="exportJSON()">↓ EXPORT JSON</button>
+        </div>
+      </div>
+      <div class="pnl">
+        <div class="ptitle">◈ IMPORT DATA</div>
+        <div class="drop-zone" id="drop-zone" onclick="document.getElementById('file-input').click()"
+          ondragover="dragOver(event)" ondragleave="dragLeave(event)" ondrop="dropFile(event)">
+          <div class="drop-zone-icon">⬆</div>
+          <div class="drop-zone-txt">Drag & drop file di sini</div>
+          <div class="drop-zone-sub">atau klik untuk pilih file</div>
+          <div class="drop-zone-sub" style="margin-top:4px;color:var(--cyan);">Format: .csv atau .json</div>
+        </div>
+        <input type="file" id="file-input" accept=".csv,.json" style="display:none;" onchange="importFile(event)">
+      </div>
+    </div>
+    <div class="pnl" style="margin-top:0;">
+      <div class="ptitle">◈ FORMAT CSV</div>
+      <div style="background:rgba(0,245,255,.03);border:1px solid rgba(0,245,255,.09);padding:11px;font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--txt2);line-height:1.8;overflow-x:auto;">
+        <span style="color:var(--cyan);">timestamp,cumulative_displacement,incremental_displacement,velocity,acceleration,state,risk,notes</span><br>
+        2026-05-25 08:00:00,140.2,,,,,, Survey pagi<br>
+        2026-05-25 08:30:00,141.8,1.6,3.2,0.01,,,<br>
+        <span style="color:var(--txt3);"># velocity/accel/state/risk bisa dikosongkan → auto-hitung</span>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /wrap -->
+</div><!-- /page-input -->
+
+<!-- TOAST -->
+<div id="toast" class="toast"></div>
+
+<!-- MODAL -->
+<div class="modal-bg" id="confirm-modal">
+  <div class="modal">
+    <h3>⚠ KONFIRMASI</h3>
+    <p id="confirm-msg">Yakin ingin menghapus semua data?</p>
+    <div class="modal-btns">
+      <button class="btn btn-r" id="confirm-ok">HAPUS SEMUA</button>
+      <button class="btn btn-c" onclick="closeModal()">BATAL</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════
+// STATE
+// ══════════════════════════════════════════════════
+let DATA = [];
+try { DATA = JSON.parse(localStorage.getItem('geotech_data') || '[]'); } catch(e){}
+let currentPage = 1;
+const PAGE_SIZE = 20;
+let inputCharts = {};
+let dashCharts = {};
+let donutChart = null;
+
+// Chart defaults
+Chart.defaults.color='#3a6680';
+Chart.defaults.borderColor='rgba(0,245,255,0.07)';
+Chart.defaults.font.family="'Share Tech Mono',monospace";
+Chart.defaults.font.size=9;
+
+// ══════════════════════════════════════════════════
+// CLOCK
+// ══════════════════════════════════════════════════
+function tick(){
+  const n=new Date();
+  document.getElementById('hdr-time').textContent=n.toTimeString().slice(0,8);
+  document.getElementById('hdr-date').textContent=n.toLocaleDateString('id-ID',{day:'2-digit',month:'short',year:'numeric'}).toUpperCase();
+}
+setInterval(tick,1000); tick();
+
+// ══════════════════════════════════════════════════
+// TAB SWITCHING
+// ══════════════════════════════════════════════════
+function switchMain(id){
+  document.querySelectorAll('.main-tab').forEach((t,i)=>t.classList.toggle('active',['dashboard','input'][i]===id));
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.getElementById('page-'+id).classList.add('active');
+  if(id==='dashboard') setTimeout(()=>{ buildDashboard(); },80);
+}
+
+function switchSub(id){
+  document.querySelectorAll('.stab').forEach((t,i)=>t.classList.toggle('active',['form','batch','table','chart','io'][i]===id));
+  document.querySelectorAll('.sub-content').forEach(c=>c.classList.remove('active'));
+  document.getElementById('sub-'+id).classList.add('active');
+  if(id==='table') renderTable();
+  if(id==='chart') setTimeout(updateInputCharts,50);
+}
+
+// ══════════════════════════════════════════════════
+// CALC / STATE
+// ══════════════════════════════════════════════════
+function calcDerived(ts,disp,prev){
+  let incr=null,vel=null,accel=null,iv=null;
+  if(prev&&ts&&disp!==null){
+    const dt=(new Date(ts)-new Date(prev.timestamp))/3600000;
+    if(dt>0){
+      incr=disp-prev.cumulative_displacement;
+      vel=incr/dt;
+      iv=vel>0.0001?1/vel:null;
+      if(prev.velocity!=null) accel=(vel-prev.velocity)/dt;
+    }
+  }
+  return{incr,vel,iv,accel};
+}
+function autoState(iv){ if(!iv||iv>1)return'S1'; if(iv>0.2)return'S2'; if(iv>0.05)return'S3'; return'S4'; }
+function autoRisk(s){ return{S1:'LOW',S2:'MOD',S3:'HIGH',S4:'CRIT'}[s]||'LOW'; }
+
+// ══════════════════════════════════════════════════
+// FORM ACTIONS
+// ══════════════════════════════════════════════════
+function setNow(){
+  const n=new Date(); n.setMinutes(n.getMinutes()-n.getTimezoneOffset());
+  document.getElementById('f-ts').value=n.toISOString().slice(0,19);
+}
+function clearForm(){
+  ['f-ts','f-disp','f-incr','f-vel','f-accel','f-notes'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('f-state').value=''; document.getElementById('f-risk').value='';
+  document.getElementById('form-preview').style.display='none';
+}
+function previewRow(){
+  const ts=document.getElementById('f-ts').value;
+  const disp=parseFloat(document.getElementById('f-disp').value);
+  if(!ts||isNaN(disp)){toast('Isi TIMESTAMP dan CUMULATIVE DISPLACEMENT!','err');return;}
+  const prev=DATA.length>0?DATA[DATA.length-1]:null;
+  const d=calcDerived(ts,disp,prev);
+  const vel=document.getElementById('f-vel').value!==''?parseFloat(document.getElementById('f-vel').value):d.vel;
+  const iv=vel&&vel>0.0001?1/vel:d.iv;
+  const state=document.getElementById('f-state').value||autoState(iv);
+  const risk=document.getElementById('f-risk').value||autoRisk(state);
+  document.getElementById('preview-content').innerHTML=
+    `<span style="color:var(--cyan);">Timestamp:</span> ${ts}<br>
+     <span style="color:var(--cyan);">Cum Disp:</span> ${disp.toFixed(3)} mm &nbsp;|&nbsp;
+     <span style="color:var(--cyan);">Incr:</span> ${d.incr!==null?d.incr.toFixed(3)+' mm':'—'}<br>
+     <span style="color:var(--orange);">Velocity:</span> ${vel!==null?vel.toFixed(4)+' mm/h':'—'} &nbsp;|&nbsp;
+     <span style="color:var(--amber);">IV:</span> ${iv!==null?iv.toFixed(4)+' h/mm':'—'}<br>
+     <span style="color:var(--green);">State:</span> ${state} &nbsp;|&nbsp; <span style="color:var(--green);">Risk:</span> ${risk} &nbsp;|&nbsp; <span style="color:var(--txt3);">Notes:</span> ${document.getElementById('f-notes').value||'—'}`;
+  document.getElementById('form-preview').style.display='block';
+}
+function addRow(){
+  const ts=document.getElementById('f-ts').value;
+  const disp=parseFloat(document.getElementById('f-disp').value);
+  if(!ts){toast('Timestamp wajib diisi!','err');return;}
+  if(isNaN(disp)){toast('Cumulative Displacement wajib diisi!','err');return;}
+  const prev=DATA.length>0?DATA[DATA.length-1]:null;
+  const d=calcDerived(ts,disp,prev);
+  const velI=document.getElementById('f-vel').value;
+  const accelI=document.getElementById('f-accel').value;
+  const incrI=document.getElementById('f-incr').value;
+  const vel=velI!==''?parseFloat(velI):d.vel;
+  const iv=vel&&vel>0.0001?1/vel:d.iv;
+  DATA.push({id:Date.now()+Math.random(),timestamp:ts,cumulative_displacement:disp,
+    incremental_displacement:incrI!==''?parseFloat(incrI):d.incr,
+    velocity:vel,acceleration:accelI!==''?parseFloat(accelI):d.accel,inverse_velocity:iv,
+    state:document.getElementById('f-state').value||autoState(iv),
+    risk:document.getElementById('f-risk').value||autoRisk(autoState(iv)),
+    notes:document.getElementById('f-notes').value});
+  DATA.sort((a,b)=>new Date(a.timestamp)-new Date(b.timestamp));
+  save(); updateStats(); clearForm();
+  toast('✓ Data berhasil ditambahkan!','ok');
+}
+function parseBatch(){
+  const raw=document.getElementById('batch-input').value.trim();
+  if(!raw){toast('Input kosong!','err');return;}
+  let added=0,errors=0;
+  raw.split('\n').filter(l=>l.trim()&&!l.startsWith('#')).forEach(line=>{
+    const p=line.split(',').map(s=>s.trim());
+    const ts=p[0]; const disp=parseFloat(p[1]);
+    if(!ts||isNaN(disp)){errors++;return;}
+    const prev=DATA.length>0?DATA[DATA.length-1]:null;
+    const d=calcDerived(ts,disp,prev);
+    const vel=p[3]&&p[3]!==''?parseFloat(p[3]):d.vel;
+    const iv=vel&&vel>0.0001?1/vel:d.iv;
+    const state=(p[4]&&p[4].match(/^S[1-4]$/))?p[4]:autoState(iv);
+    DATA.push({id:Date.now()+Math.random(),timestamp:ts,cumulative_displacement:disp,
+      incremental_displacement:p[2]&&p[2]!==''?parseFloat(p[2]):d.incr,
+      velocity:vel,acceleration:d.accel,inverse_velocity:iv,
+      state,risk:p[5]||autoRisk(state),notes:p[6]||''});
+    added++;
+  });
+  DATA.sort((a,b)=>new Date(a.timestamp)-new Date(b.timestamp));
+  save(); updateStats(); document.getElementById('batch-input').value='';
+  toast(`✓ ${added} baris ditambahkan${errors?`, ${errors} error`:''}`,added>0?'ok':'err');
+}
+function deleteRow(id){DATA=DATA.filter(r=>r.id!==id);save();renderTable();updateStats();toast('Baris dihapus.','inf');}
+function confirmClearAll(){
+  document.getElementById('confirm-msg').textContent=`Yakin menghapus semua ${DATA.length} baris?`;
+  document.getElementById('confirm-ok').onclick=()=>{DATA=[];save();renderTable();updateStats();closeModal();toast('Semua data dihapus.','inf');};
+  document.getElementById('confirm-modal').classList.add('open');
+}
+function closeModal(){document.getElementById('confirm-modal').classList.remove('open');}
+
+// ══════════════════════════════════════════════════
+// STATS (Input page)
+// ══════════════════════════════════════════════════
+function updateStats(){
+  const n=DATA.length;
+  document.getElementById('s-rows').textContent=n;
+  document.getElementById('hdr-count').textContent=n;
+  if(!n){['s-disp','s-vel','s-iv','s-state'].forEach(id=>document.getElementById(id).innerHTML='—');return;}
+  const last=DATA[n-1];
+  document.getElementById('s-disp').innerHTML=(last.cumulative_displacement||0).toFixed(2);
+  document.getElementById('s-vel').innerHTML=last.velocity!=null?last.velocity.toFixed(4):'—';
+  document.getElementById('s-iv').innerHTML=last.inverse_velocity!=null?last.inverse_velocity.toFixed(4):'—';
+  document.getElementById('s-state').textContent=last.state||'—';
+}
+
+// ══════════════════════════════════════════════════
+// TABLE
+// ══════════════════════════════════════════════════
+function renderTable(){
+  const search=(document.getElementById('search-input').value||'').toLowerCase();
+  const sf=document.getElementById('filter-state').value;
+  let filt=DATA.filter(r=>{
+    const ms=!search||r.timestamp.toLowerCase().includes(search)||(r.notes||'').toLowerCase().includes(search);
+    return ms&&(!sf||r.state===sf);
+  }).slice().reverse();
+  const total=filt.length, totalPg=Math.max(1,Math.ceil(total/PAGE_SIZE));
+  currentPage=Math.min(currentPage,totalPg);
+  const start=(currentPage-1)*PAGE_SIZE, pageD=filt.slice(start,start+PAGE_SIZE);
+  const bmap={S1:'bs1',S2:'bs2',S3:'bs3',S4:'bs4',LOW:'blow',MOD:'bmod',HIGH:'bhigh',CRIT:'bcrit'};
+  const b=(v,m)=>`<span class="badge ${m[v]||''}">${v||'—'}</span>`;
+  const f=(v,d)=>v!=null&&v!==undefined?parseFloat(v).toFixed(d):'—';
+  document.getElementById('table-body').innerHTML=pageD.length?pageD.map((r,i)=>`<tr>
+    <td style="color:var(--txt3);">${start+i+1}</td><td>${r.timestamp}</td>
+    <td class="num">${f(r.cumulative_displacement,3)}</td><td>${f(r.incremental_displacement,3)}</td>
+    <td class="tvel">${f(r.velocity,4)}</td><td style="color:var(--orange);">${f(r.acceleration,5)}</td>
+    <td class="tiv">${f(r.inverse_velocity,4)}</td>
+    <td>${b(r.state,bmap)}</td><td>${b(r.risk,bmap)}</td>
+    <td style="color:var(--txt3);max-width:100px;overflow:hidden;text-overflow:ellipsis;">${r.notes||''}</td>
+    <td><button class="btn btn-r btn-sm" onclick="deleteRow(${r.id})">✕</button></td>
+  </tr>`).join(''):'<tr><td colspan="11"><div style="text-align:center;padding:30px;color:var(--txt3);font-family:\'Share Tech Mono\',monospace;font-size:11px;">◎ Tidak ada data.</div></td></tr>';
+  document.getElementById('table-info').textContent=`${total} rows`;
+  document.getElementById('page-info').textContent=`${currentPage}/${totalPg}`;
+  document.getElementById('prev-pg').disabled=currentPage<=1;
+  document.getElementById('next-pg').disabled=currentPage>=totalPg;
+}
+function changePage(d){currentPage+=d;renderTable();}
+
+// ══════════════════════════════════════════════════
+// INPUT CHARTS
+// ══════════════════════════════════════════════════
+function mkChart(id,label,data,labels,color,yLabel){
+  if(inputCharts[id]) inputCharts[id].destroy();
+  inputCharts[id]=new Chart(document.getElementById(id),{
+    type:'line',data:{labels,datasets:[{label,data,borderColor:color,
+      backgroundColor:color+'18',borderWidth:1.5,fill:true,tension:0.3,
+      pointRadius:data.length>30?0:2,pointBackgroundColor:color,spanGaps:true}]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{backgroundColor:'rgba(5,13,26,.92)',borderColor:'rgba(0,245,255,.3)',borderWidth:1,titleColor:'#00f5ff',bodyColor:'#7ab8d4'}},
+      scales:{x:{grid:{color:'rgba(0,245,255,.05)'},ticks:{color:'#3a6680',maxRotation:45,maxTicksLimit:8}},
+              y:{grid:{color:'rgba(0,245,255,.05)'},ticks:{color},title:{display:true,text:yLabel,color,font:{size:9}}}}}
+  });
+}
+function updateInputCharts(){
+  const range=parseInt(document.getElementById('chart-range').value)||0;
+  let d=[...DATA].sort((a,b)=>new Date(a.timestamp)-new Date(b.timestamp));
+  if(range>0&&d.length>range) d=d.slice(-range);
+  const empty=d.length<2;
+  document.getElementById('chart-empty-msg').style.display=empty?'block':'none';
+  if(empty) return;
+  const labels=d.map(r=>r.timestamp.slice(5,16));
+  mkChart('ic-disp','Displacement',d.map(r=>r.cumulative_displacement),labels,'#00f5ff','mm');
+  mkChart('ic-vel','Velocity',d.map(r=>r.velocity),labels,'#ff6600','mm/h');
+  mkChart('ic-iv','Inverse Velocity',d.map(r=>r.inverse_velocity),labels,'#ffaa00','h/mm');
+  mkChart('ic-accel','Acceleration',d.map(r=>r.acceleration),labels,'#00ff88','mm/h²');
+}
+
+// ══════════════════════════════════════════════════
+// IMPORT / EXPORT
+// ══════════════════════════════════════════════════
+function exportCSV(){
+  if(!DATA.length){toast('Tidak ada data!','err');return;}
+  const h='timestamp,cumulative_displacement,incremental_displacement,velocity,acceleration,inverse_velocity,state,risk,notes';
+  const rows=DATA.map(r=>[r.timestamp,r.cumulative_displacement??'',r.incremental_displacement??'',
+    r.velocity??'',r.acceleration??'',r.inverse_velocity??'',r.state??'',r.risk??'',(r.notes||'').replace(/,/g,' ')].join(','));
+  dl(new Blob([h+'\n'+rows.join('\n')],{type:'text/csv'}),`geotech_${new Date().toISOString().slice(0,10)}.csv`);
+  toast('✓ CSV exported!','ok');
+}
+function exportJSON(){
+  if(!DATA.length){toast('Tidak ada data!','err');return;}
+  dl(new Blob([JSON.stringify({exported:new Date().toISOString(),data:DATA},null,2)],{type:'application/json'}),`geotech_${new Date().toISOString().slice(0,10)}.json`);
+  toast('✓ JSON exported!','ok');
+}
+function dl(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;a.click();}
+function dragOver(e){e.preventDefault();document.getElementById('drop-zone').classList.add('dragover');}
+function dragLeave(){document.getElementById('drop-zone').classList.remove('dragover');}
+function dropFile(e){e.preventDefault();dragLeave();const f=e.dataTransfer.files[0];if(f)processImport(f);}
+function importFile(e){const f=e.target.files[0];if(f)processImport(f);}
+function processImport(file){
+  const reader=new FileReader();
+  reader.onload=e=>{
+    const c=e.target.result;
+    if(file.name.endsWith('.json')){
+      try{const p=JSON.parse(c);const rows=p.data||p;if(!Array.isArray(rows)){toast('JSON tidak valid!','err');return;}
+        DATA=[...DATA,...rows.map(r=>({...r,id:Date.now()+Math.random()}))];
+        DATA.sort((a,b)=>new Date(a.timestamp)-new Date(b.timestamp));
+        save();updateStats();renderTable();toast(`✓ ${rows.length} baris diimport!`,'ok');
+      }catch{toast('Error parsing JSON!','err');}
+    } else {
+      const lines=c.split('\n').filter(l=>l.trim());
+      const hdr=lines[0].toLowerCase().split(',').map(h=>h.trim());
+      const ti=hdr.findIndex(h=>h.includes('timestamp')||h.includes('time'));
+      const di=hdr.findIndex(h=>h.includes('cumulative')||h.includes('disp'));
+      if(ti<0||di<0){toast('Kolom timestamp/displacement tidak ditemukan!','err');return;}
+      let added=0;
+      lines.slice(1).forEach(line=>{
+        const p=line.split(',').map(s=>s.trim());
+        const ts=p[ti];const disp=parseFloat(p[di]);
+        if(!ts||isNaN(disp))return;
+        const vi=hdr.findIndex(h=>h.includes('velocity')&&!h.includes('inverse'));
+        const ii=hdr.findIndex(h=>h.includes('inverse'));
+        const si=hdr.findIndex(h=>h.includes('state'));
+        const ri=hdr.findIndex(h=>h.includes('risk'));
+        const ni=hdr.findIndex(h=>h.includes('note'));
+        const prev=DATA.length>0?DATA[DATA.length-1]:null;
+        const d=calcDerived(ts,disp,prev);
+        const vel=vi>=0&&p[vi]?parseFloat(p[vi]):d.vel;
+        const iv=ii>=0&&p[ii]?parseFloat(p[ii]):(vel&&vel>0.0001?1/vel:d.iv);
+        const state=si>=0&&p[si]?p[si]:autoState(iv);
+        DATA.push({id:Date.now()+Math.random(),timestamp:ts,cumulative_displacement:disp,
+          velocity:vel,acceleration:d.accel,inverse_velocity:iv,
+          state,risk:ri>=0&&p[ri]?p[ri]:autoRisk(state),notes:ni>=0?p[ni]:''});
+        added++;
+      });
+      DATA.sort((a,b)=>new Date(a.timestamp)-new Date(b.timestamp));
+      save();updateStats();renderTable();toast(`✓ ${added} baris diimport!`,'ok');
+    }
+  };
+  reader.readAsText(file);
+}
+
+// ══════════════════════════════════════════════════
+// SAVE
+// ══════════════════════════════════════════════════
+function save(){try{localStorage.setItem('geotech_data',JSON.stringify(DATA));}catch(e){}}
+
+// ══════════════════════════════════════════════════
+// TOAST
+// ══════════════════════════════════════════════════
+function toast(msg,type='inf'){
+  const el=document.getElementById('toast');
+  el.textContent=msg;el.className=`toast show t${type}`;
+  setTimeout(()=>el.classList.remove('show'),3000);
+}
+
+// ══════════════════════════════════════════════════
+// DASHBOARD — BUILD
+// ══════════════════════════════════════════════════
+function buildDashboard(){
+  if(!DATA.length){ setDashEmpty(); return; }
+  const sorted=[...DATA].sort((a,b)=>new Date(a.timestamp)-new Date(b.timestamp));
+  const last=sorted[sorted.length-1];
+  const n=sorted.length;
+
+  // Metrics
+  const disp=last.cumulative_displacement||0;
+  const vel=last.velocity;
+  const iv=last.inverse_velocity;
+  document.getElementById('d-disp').innerHTML=disp.toLocaleString(undefined,{maximumFractionDigits:2})+'<span class="munit">mm</span>';
+  document.getElementById('d-disp2').textContent=(disp/1000).toFixed(3)+' m total';
+  document.getElementById('d-vel').innerHTML=(vel!=null?vel.toFixed(4):'—')+'<span class="munit">mm/h</span>';
+  document.getElementById('d-iv').innerHTML=(iv!=null?iv.toFixed(4):'—')+'<span class="munit">h/mm</span>';
+
+  // State / Risk
+  const state=last.state||autoState(iv);
+  const risk=last.risk||autoRisk(state);
+  const stateColors={S1:['#00ff88','rgba(0,255,136,.05)','rgba(0,255,136,.3)'],
+    S2:['#1a6fff','rgba(26,111,255,.05)','rgba(26,111,255,.3)'],
+    S3:['#ffaa00','rgba(255,170,0,.05)','rgba(255,170,0,.3)'],
+    S4:['#ff2244','rgba(255,34,68,.05)','rgba(255,34,68,.3)']};
+  const stateDescs={S1:'Slope dalam kondisi stabil. Kecepatan deformasi rendah, IV tinggi. Monitoring rutin.',
+    S2:'Creep linear terdeteksi. IV menurun perlahan. Tingkatkan frekuensi monitoring.',
+    S3:'Deformasi progresif. IV mendekati threshold kritis. Siapkan protokol evakuasi.',
+    S4:'KONDISI KRITIS. IV sangat rendah, slope mendekati kegagalan. EVAKUASI SEGERA.'};
+  const stateLabels={S1:'✓ STABLE — S1',S2:'⚠ LINEAR CREEP — S2',S3:'⚠ PROGRESSIVE — S3',S4:'🚨 CRITICAL — S4'};
+  const riskWidths={LOW:'15%',MOD:'38%',HIGH:'65%',CRIT:'95%'};
+  const riskColors={LOW:'#00ff88',MOD:'#1a6fff',HIGH:'#ffaa00',CRIT:'#ff2244'};
+  const [sc,sbg,sbrd]=stateColors[state]||stateColors.S1;
+  const sbox=document.getElementById('d-status-box');
+  sbox.style.background=sbg; sbox.style.borderColor=sbrd;
+  document.getElementById('d-status-txt').style.color=sc;
+  document.getElementById('d-status-txt').textContent=stateLabels[state]||state;
+  document.getElementById('d-status-desc').textContent=stateDescs[state]||'';
+  document.getElementById('d-gauge').style.width=riskWidths[risk]||'15%';
+  const rc=riskColors[risk]||'#00ff88';
+  document.getElementById('d-risk-lbl').style.color=rc;
+  document.getElementById('d-risk-lbl').textContent=risk||'—';
+
+  // Failure prob based on state
+  const probMap={S1:3,S2:12,S3:42,S4:85};
+  const prob=probMap[state]||3;
+  document.getElementById('d-prob').style.color=rc;
+  document.getElementById('d-prob').style.textShadow=`0 0 14px ${rc}66`;
+  document.getElementById('d-prob').innerHTML=prob+'<span style="font-size:14px;color:'+rc+'88;">%</span>';
+
+  // Risk probability table
+  const pmap={S1:[2,1,4,2,7,3],S2:[8,3,15,6,25,12],S3:[22,8,38,18,55,43],S4:[60,35,78,55,90,75]};
+  const pp=pmap[state]||pmap.S1;
+  ['p3prog','p3crit','p6prog','p6crit','p12prog','p12crit'].forEach((id,i)=>document.getElementById(id).textContent=pp[i]+'%');
+
+  // Scenarios
+  const ivNow=iv||999;
+  const scenTimes={S1:'TIDAK TERDETEKSI',S2:'> 72 JAM',S3:'12–36 JAM',S4:'< 12 JAM'};
+  const scenConfs={S1:15,S2:45,S3:72,S4:94};
+  document.getElementById('sc-a-time').textContent=scenTimes[state];
+  document.getElementById('sc-a-conf').textContent='Scenario A (IV≥0.10) · CONF: '+scenConfs[state]+'%';
+  document.getElementById('sc-a-bar').style.width=scenConfs[state]+'%';
+  document.getElementById('sc-b-time').textContent=scenTimes[state]==='< 12 JAM'?'< 6 JAM':scenTimes[state];
+  document.getElementById('sc-b-conf').textContent='Scenario B (IV≥0.05) · CONF: '+(scenConfs[state]-15)+'%';
+  document.getElementById('sc-b-bar').style.width=(scenConfs[state]-15)+'%';
+  document.getElementById('sc-c-time').textContent=state==='S4'?'MONITORING RE-AKTIVASI':state==='S3'?'24–48 JAM':'TIDAK TERDETEKSI';
+  document.getElementById('sc-c-conf').textContent='Scenario C (Re-aktivasi) · CONF: '+(scenConfs[state]-25)+'%';
+  document.getElementById('sc-c-bar').style.width=(scenConfs[state]-25)+'%';
+
+  // Failure window
+  const fwMap={S1:'TIDAK ADA RISIKO IMMINEN',S2:'> 72 JAM KE DEPAN',S3:'12–48 JAM KE DEPAN',S4:'IMMINEN — EVAKUASI!'};
+  document.getElementById('d-fw').textContent=fwMap[state];
+  document.getElementById('d-fw').style.color=rc;
+
+  // State distribution
+  const sCounts={S1:0,S2:0,S3:0,S4:0};
+  sorted.forEach(r=>{const s=r.state||autoState(r.inverse_velocity);if(sCounts[s]!==undefined)sCounts[s]++;});
+  const tot=Object.values(sCounts).reduce((a,b)=>a+b,0)||1;
+  const sPct={S1:Math.round(sCounts.S1/tot*100),S2:Math.round(sCounts.S2/tot*100),S3:Math.round(sCounts.S3/tot*100),S4:100-Math.round(sCounts.S1/tot*100)-Math.round(sCounts.S2/tot*100)-Math.round(sCounts.S3/tot*100)};
+  document.getElementById('dp-s1').textContent=sPct.S1+'%';
+  document.getElementById('dp-s2').textContent=sPct.S2+'%';
+  document.getElementById('dp-s3').textContent=sPct.S3+'%';
+  document.getElementById('dp-s4').textContent=sPct.S4+'%';
+  const dom=Object.entries(sCounts).sort((a,b)=>b[1]-a[1])[0][0];
+  const domLabels={S1:'S1 — STABLE',S2:'S2 — LINEAR CREEP',S3:'S3 — PROGRESSIVE',S4:'S4 — CRITICAL'};
+  const domColors={S1:'#00ff88',S2:'#1a6fff',S3:'#ffaa00',S4:'#ff2244'};
+  document.getElementById('d-dominant').textContent=domLabels[dom];
+  document.getElementById('d-dominant').style.color=domColors[dom];
+  document.getElementById('d-datainfo').textContent=n+' data points · '+sorted[0].timestamp.slice(0,10)+' → '+sorted[n-1].timestamp.slice(0,10);
+
+  // Donut
+  if(donutChart) donutChart.destroy();
+  donutChart=new Chart(document.getElementById('d-donut'),{
+    type:'doughnut',
+    data:{labels:['S1','S2','S3','S4'],datasets:[{data:[sPct.S1,sPct.S2,sPct.S3,sPct.S4],
+      backgroundColor:['#00ff88','#1a6fff','#ffaa00','#ff2244'],borderColor:'#050d1a',borderWidth:2}]},
+    options:{responsive:false,cutout:'62%',plugins:{legend:{display:false},tooltip:{enabled:false}}}
+  });
+
+  // Insights / Recommendations
+  buildInsightsRecs(sorted,state,iv,disp,vel,prob,dom);
+
+  // Charts
+  buildDashCharts(sorted);
+}
+
+function setDashEmpty(){
+  ['d-disp','d-vel','d-iv','d-status-txt','d-risk-lbl','d-prob','d-dominant','d-fw'].forEach(id=>{const el=document.getElementById(id); if(el) el.innerHTML='—';});
+  document.getElementById('d-status-desc').textContent='Belum ada data. Masukkan data melalui tab Input Data.';
+  document.getElementById('d-datainfo').textContent='0 data points';
+  document.getElementById('d-insights').innerHTML='<div style="color:var(--txt3);font-size:11px;font-family:\'Share Tech Mono\',monospace;padding:20px 0;">◎ Belum ada data untuk dianalisis.</div>';
+  document.getElementById('d-recs').innerHTML='<div style="color:var(--txt3);font-size:11px;font-family:\'Share Tech Mono\',monospace;padding:20px 0;">◎ Masukkan data terlebih dahulu.</div>';
+}
+
+function buildInsightsRecs(sorted,state,iv,disp,vel,prob,dom){
+  const n=sorted.length;
+  const last=sorted[n-1]; const first=sorted[0];
+  const dtH=(new Date(last.timestamp)-new Date(first.timestamp))/3600000;
+  const avgVel=disp/(dtH||1);
+  const validIVs=sorted.filter(r=>r.inverse_velocity!=null&&r.inverse_velocity<100).map(r=>r.inverse_velocity);
+  const minIV=validIVs.length?Math.min(...validIVs):null;
+
+  const insights=[
+    `Total kumulatif displacement: <strong style="color:var(--cyan)">${disp.toLocaleString(undefined,{maximumFractionDigits:1})} mm (${(disp/1000).toFixed(3)} m)</strong> dari ${n} data point selama ${dtH.toFixed(1)} jam.`,
+    minIV!=null?`IV minimum tercatat: <strong style="color:var(--red)">${minIV.toFixed(4)} h/mm</strong> — ${minIV<0.01?'jauh di bawah threshold S4 Critical, indikasi event kegagalan':minIV<0.05?'di bawah threshold S4 Critical':minIV<0.2?'dalam zona S3 Progressive':'dalam zona aman'}.`:`Inverse Velocity belum dapat dihitung — butuh minimal 2 data point berurutan.`,
+    `Kecepatan rata-rata: <strong style="color:var(--orange)">${avgVel.toFixed(4)} mm/h</strong>. State dominan selama periode monitoring: <strong style="color:var(--blue)">${dom}</strong>.`,
+    `Probabilitas kegagalan dalam 12 jam ke depan: <strong style="color:var(--red)">${prob}%</strong> berdasarkan state saat ini (${state}).`
+  ];
+  const recs={
+    S1:['Lanjutkan monitoring rutin. Tidak ada tindakan khusus diperlukan saat ini.',
+        'Verifikasi sensor radar dan reflektor prisma secara berkala (mingguan).',
+        'Dokumentasikan kondisi baseline untuk referensi perbandingan masa depan.',
+        'Update model stabilitas lereng dengan data monitoring terkini.'],
+    S2:['Tingkatkan frekuensi scan radar. Perhatikan tren IV — jika terus menurun segera eskalasi.',
+        'Lakukan pemeriksaan visual slope dan periksa piezometer untuk tekanan air pori.',
+        'Briefing tim operasi tentang kondisi S2 dan prosedur eskalasi ke S3.',
+        'Siapkan rencana pengalihan jalur haul road jika diperlukan.'],
+    S3:['<strong style="color:var(--red)">WASPADA:</strong> Siapkan protokol evakuasi. Informasikan manajemen dan tim darurat.',
+        'Tingkatkan scan radar ke interval 5-10 menit. Pasang reflektor tambahan di zona kritis.',
+        'Aktifkan standby alert Level 2 untuk semua personel dalam radius 200m dari kaki lereng.',
+        'Periksa dan catat semua bacaan piezometer. Jika tekanan air pori > 85 kPa, eskalasi ke S4.'],
+    S4:['<strong style="color:var(--red)">EVAKUASI SEGERA</strong> semua personel dari zona bahaya. Aktifkan protokol darurat Level 3.',
+        'Hubungi Emergency Response Team dan manajemen senior. Blokir akses ke area terdampak.',
+        'Pertahankan monitoring radar (otomatis, tidak perlu personel on-site) untuk tracking post-event.',
+        'Dokumentasikan waktu dan skala event untuk analisis geoteknik dan pelaporan regulatori.']
+  };
+  document.getElementById('d-insights').innerHTML=insights.map(t=>`<div class="ins-item"><span class="ins-bul">►</span><span>${t}</span></div>`).join('');
+  document.getElementById('d-recs').innerHTML=(recs[state]||recs.S1).map(t=>`<div class="rec-item"><span class="rec-bul">▶</span><span>${t}</span></div>`).join('');
+}
+
+function buildDashCharts(sorted){
+  const step=Math.max(1,Math.floor(sorted.length/80));
+  const data=sorted.filter((_,i)=>i%step===0||i===sorted.length-1);
+  const labels=data.map(r=>r.timestamp.slice(5,16));
+
+  const mkD=(id,ds,opts={})=>{
+    if(dashCharts[id]) dashCharts[id].destroy();
+    dashCharts[id]=new Chart(document.getElementById(id),{type:'line',data:{labels,datasets:ds},
+      options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+        plugins:{legend:{display:false},tooltip:{backgroundColor:'rgba(5,13,26,.92)',borderColor:'rgba(0,245,255,.3)',borderWidth:1,titleColor:'#00f5ff',bodyColor:'#7ab8d4'}},
+        scales:{x:{grid:{color:'rgba(0,245,255,.05)'},ticks:{color:'#3a6680',maxRotation:45,maxTicksLimit:10}},
+                y:{grid:{color:'rgba(0,245,255,.06)'},ticks:{color:opts.yc||'#00b8c4'},
+                   title:{display:true,text:opts.yLabel||'',color:opts.yc||'#00b8c4',font:{size:9}}},
+                ...(opts.y2?{y2:{position:'right',grid:{drawOnChartArea:false},ticks:{color:opts.y2c||'#b84800'},title:{display:true,text:opts.y2Label||'',color:opts.y2c||'#b84800',font:{size:9}}}}:{})
+              },...opts}});
+  };
+
+  mkD('d-c1',[
+    {label:'Displacement',data:data.map(r=>r.cumulative_displacement),borderColor:'#00f5ff',backgroundColor:'rgba(0,245,255,.06)',borderWidth:2,fill:true,tension:0.3,yAxisID:'y',pointRadius:1},
+    {label:'Velocity',data:data.map(r=>r.velocity),borderColor:'#ff6600',backgroundColor:'rgba(0,0,0,0)',borderWidth:1.5,fill:false,tension:0.3,yAxisID:'y2',pointRadius:1,borderDash:[4,2]}
+  ],{yc:'#00b8c4',yLabel:'Displacement (mm)',y2:true,y2c:'#b84800',y2Label:'Velocity (mm/h)'});
+
+  const th10=Array(data.length).fill(0.10);
+  const th05=Array(data.length).fill(0.05);
+  const th01=Array(data.length).fill(0.01);
+  mkD('d-c2',[
+    {label:'IV',data:data.map(r=>r.inverse_velocity),borderColor:'#00f5ff',backgroundColor:'rgba(0,245,255,.05)',borderWidth:2,fill:true,tension:0.2,pointRadius:2,
+     pointBackgroundColor:data.map(r=>!r.inverse_velocity?'#888':r.inverse_velocity<=0.01?'#ff2244':r.inverse_velocity<=0.05?'#ff6600':r.inverse_velocity<=0.10?'#ffaa00':'#00f5ff'),spanGaps:true},
+    {label:'IV=0.10',data:th10,borderColor:'rgba(0,100,255,.5)',borderWidth:1,borderDash:[5,3],pointRadius:0,fill:false},
+    {label:'IV=0.05',data:th05,borderColor:'rgba(255,100,0,.5)',borderWidth:1,borderDash:[5,3],pointRadius:0,fill:false},
+    {label:'IV=0.01',data:th01,borderColor:'rgba(255,34,68,.5)',borderWidth:1,borderDash:[5,3],pointRadius:0,fill:false},
+  ],{yc:'#00b8c4',yLabel:'IV (h/mm)',y2:false});
+  dashCharts['d-c2'].options.plugins.legend={display:true,position:'top',labels:{color:'#3a6680',boxWidth:14,padding:8,font:{size:8}}};
+  dashCharts['d-c2'].update();
+
+  const accelData=data.map(r=>r.acceleration!=null?Math.max(-5,Math.min(5,r.acceleration)):null);
+  if(dashCharts['d-c3']) dashCharts['d-c3'].destroy();
+  dashCharts['d-c3']=new Chart(document.getElementById('d-c3'),{
+    type:'bar',data:{labels,datasets:[{label:'Acceleration',data:accelData,
+      backgroundColor:accelData.map(v=>v==null?'transparent':Math.abs(v)>1?'rgba(255,34,68,.7)':Math.abs(v)>0.2?'rgba(255,170,0,.6)':'rgba(0,255,136,.5)'),
+      borderWidth:0.5}]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{backgroundColor:'rgba(5,13,26,.92)',borderColor:'rgba(0,245,255,.3)',borderWidth:1,titleColor:'#00f5ff',bodyColor:'#7ab8d4'}},
+      scales:{x:{grid:{color:'rgba(0,245,255,.04)'},ticks:{color:'#3a6680',maxRotation:45,maxTicksLimit:10}},
+              y:{grid:{color:'rgba(0,245,255,.05)'},ticks:{color:'#00b860'},title:{display:true,text:'mm/h² (clipped ±5)',color:'#00b860',font:{size:9}}}}}
+  });
+}
+
+// ══════════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════════
+setNow();
+updateStats();
+buildDashboard();
+</script>
+</body>
+</html>
