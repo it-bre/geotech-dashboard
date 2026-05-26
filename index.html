@@ -615,7 +615,7 @@ td.num{color:var(--cyan);}td.tvel{color:var(--orange);}td.tiv{color:var(--amber)
           <div class="drop-zone-sub">atau klik untuk pilih file</div>
           <div class="drop-zone-sub" style="margin-top:4px;color:var(--cyan);">Format: .csv atau .json</div>
         </div>
-        <input type="file" id="file-input" accept=".csv,.json" style="display:none;" onchange="importFile(event)">
+        <input type="file" id="file-input" accept=".csv,.json,.xlsx,.xls" style="display:none;" onchange="importFile(event)">
       </div>
     </div>
     <div class="pnl" style="margin-top:0;">
@@ -875,64 +875,446 @@ function updateInputCharts(){
 // ══════════════════════════════════════════════════
 // IMPORT / EXPORT
 // ══════════════════════════════════════════════════
+
 function exportCSV(){
-  if(!DATA.length){toast('Tidak ada data!','err');return;}
+  if(!DATA.length){
+    toast('Tidak ada data!','err');
+    return;
+  }
+
   const h='timestamp,cumulative_displacement,incremental_displacement,velocity,acceleration,inverse_velocity,state,risk,notes';
-  const rows=DATA.map(r=>[r.timestamp,r.cumulative_displacement??'',r.incremental_displacement??'',
-    r.velocity??'',r.acceleration??'',r.inverse_velocity??'',r.state??'',r.risk??'',(r.notes||'').replace(/,/g,' ')].join(','));
-  dl(new Blob([h+'\n'+rows.join('\n')],{type:'text/csv'}),`geotech_${new Date().toISOString().slice(0,10)}.csv`);
+
+  const rows=DATA.map(r=>[
+    r.timestamp,
+    r.cumulative_displacement??'',
+    r.incremental_displacement??'',
+    r.velocity??'',
+    r.acceleration??'',
+    r.inverse_velocity??'',
+    r.state??'',
+    r.risk??'',
+    (r.notes||'').replace(/,/g,' ')
+  ].join(','));
+
+  dl(
+    new Blob(
+      [h+'\n'+rows.join('\n')],
+      {type:'text/csv'}
+    ),
+    `geotech_${new Date().toISOString().slice(0,10)}.csv`
+  );
+
   toast('✓ CSV exported!','ok');
 }
+
 function exportJSON(){
-  if(!DATA.length){toast('Tidak ada data!','err');return;}
-  dl(new Blob([JSON.stringify({exported:new Date().toISOString(),data:DATA},null,2)],{type:'application/json'}),`geotech_${new Date().toISOString().slice(0,10)}.json`);
+
+  if(!DATA.length){
+    toast('Tidak ada data!','err');
+    return;
+  }
+
+  dl(
+    new Blob(
+      [
+        JSON.stringify({
+          exported:new Date().toISOString(),
+          data:DATA
+        },null,2)
+      ],
+      {type:'application/json'}
+    ),
+    `geotech_${new Date().toISOString().slice(0,10)}.json`
+  );
+
   toast('✓ JSON exported!','ok');
 }
-function dl(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;a.click();}
-function dragOver(e){e.preventDefault();document.getElementById('drop-zone').classList.add('dragover');}
-function dragLeave(){document.getElementById('drop-zone').classList.remove('dragover');}
-function dropFile(e){e.preventDefault();dragLeave();const f=e.dataTransfer.files[0];if(f)processImport(f);}
-function importFile(e){const f=e.target.files[0];if(f)processImport(f);}
+
+function dl(blob,name){
+
+  const a=document.createElement('a');
+
+  a.href=URL.createObjectURL(blob);
+
+  a.download=name;
+
+  a.click();
+}
+
+function dragOver(e){
+
+  e.preventDefault();
+
+  document
+    .getElementById('drop-zone')
+    .classList
+    .add('dragover');
+}
+
+function dragLeave(){
+
+  document
+    .getElementById('drop-zone')
+    .classList
+    .remove('dragover');
+}
+
+function dropFile(e){
+
+  e.preventDefault();
+
+  dragLeave();
+
+  const f=e.dataTransfer.files[0];
+
+  if(f) processImport(f);
+}
+
+function importFile(e){
+
+  const f=e.target.files[0];
+
+  if(f) processImport(f);
+}
+
 function processImport(file){
+
+  const ext=file.name
+    .split('.')
+    .pop()
+    .toLowerCase();
+
+  // =========================================
+  // IMPORT XLSX / XLS
+  // =========================================
+
+  if(ext==='xlsx' || ext==='xls'){
+
+    const reader=new FileReader();
+
+    reader.onload=e=>{
+
+      try{
+
+        const data=new Uint8Array(e.target.result);
+
+        const workbook=XLSX.read(data,{
+          type:'array'
+        });
+
+        const sheetName=workbook.SheetNames[0];
+
+        const sheet=workbook.Sheets[sheetName];
+
+        const rows=XLSX.utils.sheet_to_json(sheet,{
+          defval:''
+        });
+
+        if(!rows.length){
+
+          toast('File Excel kosong!','err');
+
+          return;
+        }
+
+        let added=0;
+
+        rows.forEach(r=>{
+
+          const ts=
+            r.timestamp ||
+            r.Timestamp ||
+            r.time ||
+            r.Time;
+
+          const disp=parseFloat(
+            r.cumulative_displacement ||
+            r.displacement ||
+            r.disp ||
+            r.cum_disp
+          );
+
+          if(!ts || isNaN(disp)) return;
+
+          const prev=
+            DATA.length>0
+            ? DATA[DATA.length-1]
+            : null;
+
+          const d=calcDerived(ts,disp,prev);
+
+          const vel=
+            r.velocity
+            ? parseFloat(r.velocity)
+            : d.vel;
+
+          const iv=
+            r.inverse_velocity
+            ? parseFloat(r.inverse_velocity)
+            : (
+              vel && vel>0.0001
+              ? 1/vel
+              : d.iv
+            );
+
+          const state=
+            r.state ||
+            autoState(iv);
+
+          DATA.push({
+            id:Date.now()+Math.random(),
+            timestamp:ts,
+            cumulative_displacement:disp,
+            incremental_displacement:d.incr,
+            velocity:vel,
+            acceleration:d.accel,
+            inverse_velocity:iv,
+            state:state,
+            risk:r.risk || autoRisk(state),
+            notes:r.notes || ''
+          });
+
+          added++;
+        });
+
+        DATA.sort(
+          (a,b)=>
+            new Date(a.timestamp)-
+            new Date(b.timestamp)
+        );
+
+        save();
+
+        updateStats();
+
+        renderTable();
+
+        toast(
+          `✓ ${added} baris Excel diimport!`,
+          'ok'
+        );
+
+      }catch(err){
+
+        console.log(err);
+
+        toast(
+          'Gagal membaca file Excel!',
+          'err'
+        );
+      }
+    };
+
+    reader.readAsArrayBuffer(file);
+
+    return;
+  }
+
+  // =========================================
+  // IMPORT JSON
+  // =========================================
+
+  if(ext==='json'){
+
+    const reader=new FileReader();
+
+    reader.onload=e=>{
+
+      try{
+
+        const p=JSON.parse(e.target.result);
+
+        const rows=p.data || p;
+
+        if(!Array.isArray(rows)){
+
+          toast(
+            'JSON tidak valid!',
+            'err'
+          );
+
+          return;
+        }
+
+        DATA=[
+          ...DATA,
+          ...rows.map(r=>({
+            ...r,
+            id:Date.now()+Math.random()
+          }))
+        ];
+
+        DATA.sort(
+          (a,b)=>
+            new Date(a.timestamp)-
+            new Date(b.timestamp)
+        );
+
+        save();
+
+        updateStats();
+
+        renderTable();
+
+        toast(
+          `✓ ${rows.length} baris JSON diimport!`,
+          'ok'
+        );
+
+      }catch{
+
+        toast(
+          'Error parsing JSON!',
+          'err'
+        );
+      }
+    };
+
+    reader.readAsText(file);
+
+    return;
+  }
+
+  // =========================================
+  // IMPORT CSV
+  // =========================================
+
   const reader=new FileReader();
+
   reader.onload=e=>{
+
     const c=e.target.result;
-    if(file.name.endsWith('.json')){
-      try{const p=JSON.parse(c);const rows=p.data||p;if(!Array.isArray(rows)){toast('JSON tidak valid!','err');return;}
-        DATA=[...DATA,...rows.map(r=>({...r,id:Date.now()+Math.random()}))];
-        DATA.sort((a,b)=>new Date(a.timestamp)-new Date(b.timestamp));
-        save();updateStats();renderTable();toast(`✓ ${rows.length} baris diimport!`,'ok');
-      }catch{toast('Error parsing JSON!','err');}
-    } else {
-      const lines=c.split('\n').filter(l=>l.trim());
-      const hdr=lines[0].toLowerCase().split(',').map(h=>h.trim());
-      const ti=hdr.findIndex(h=>h.includes('timestamp')||h.includes('time'));
-      const di=hdr.findIndex(h=>h.includes('cumulative')||h.includes('disp'));
-      if(ti<0||di<0){toast('Kolom timestamp/displacement tidak ditemukan!','err');return;}
-      let added=0;
-      lines.slice(1).forEach(line=>{
-        const p=line.split(',').map(s=>s.trim());
-        const ts=p[ti];const disp=parseFloat(p[di]);
-        if(!ts||isNaN(disp))return;
-        const vi=hdr.findIndex(h=>h.includes('velocity')&&!h.includes('inverse'));
-        const ii=hdr.findIndex(h=>h.includes('inverse'));
-        const si=hdr.findIndex(h=>h.includes('state'));
-        const ri=hdr.findIndex(h=>h.includes('risk'));
-        const ni=hdr.findIndex(h=>h.includes('note'));
-        const prev=DATA.length>0?DATA[DATA.length-1]:null;
-        const d=calcDerived(ts,disp,prev);
-        const vel=vi>=0&&p[vi]?parseFloat(p[vi]):d.vel;
-        const iv=ii>=0&&p[ii]?parseFloat(p[ii]):(vel&&vel>0.0001?1/vel:d.iv);
-        const state=si>=0&&p[si]?p[si]:autoState(iv);
-        DATA.push({id:Date.now()+Math.random(),timestamp:ts,cumulative_displacement:disp,
-          velocity:vel,acceleration:d.accel,inverse_velocity:iv,
-          state,risk:ri>=0&&p[ri]?p[ri]:autoRisk(state),notes:ni>=0?p[ni]:''});
-        added++;
-      });
-      DATA.sort((a,b)=>new Date(a.timestamp)-new Date(b.timestamp));
-      save();updateStats();renderTable();toast(`✓ ${added} baris diimport!`,'ok');
+
+    const lines=c
+      .split('\n')
+      .filter(l=>l.trim());
+
+    const hdr=lines[0]
+      .toLowerCase()
+      .split(',')
+      .map(h=>h.trim());
+
+    const ti=hdr.findIndex(h=>
+      h.includes('timestamp') ||
+      h.includes('time')
+    );
+
+    const di=hdr.findIndex(h=>
+      h.includes('cumulative') ||
+      h.includes('disp')
+    );
+
+    if(ti<0 || di<0){
+
+      toast(
+        'Kolom timestamp/displacement tidak ditemukan!',
+        'err'
+      );
+
+      return;
     }
+
+    let added=0;
+
+    lines.slice(1).forEach(line=>{
+
+      const p=line
+        .split(',')
+        .map(s=>s.trim());
+
+      const ts=p[ti];
+
+      const disp=parseFloat(p[di]);
+
+      if(!ts || isNaN(disp)) return;
+
+      const vi=hdr.findIndex(h=>
+        h.includes('velocity') &&
+        !h.includes('inverse')
+      );
+
+      const ii=hdr.findIndex(h=>
+        h.includes('inverse')
+      );
+
+      const si=hdr.findIndex(h=>
+        h.includes('state')
+      );
+
+      const ri=hdr.findIndex(h=>
+        h.includes('risk')
+      );
+
+      const ni=hdr.findIndex(h=>
+        h.includes('note')
+      );
+
+      const prev=
+        DATA.length>0
+        ? DATA[DATA.length-1]
+        : null;
+
+      const d=calcDerived(ts,disp,prev);
+
+      const vel=
+        vi>=0 && p[vi]
+        ? parseFloat(p[vi])
+        : d.vel;
+
+      const iv=
+        ii>=0 && p[ii]
+        ? parseFloat(p[ii])
+        : (
+          vel && vel>0.0001
+          ? 1/vel
+          : d.iv
+        );
+
+      const state=
+        si>=0 && p[si]
+        ? p[si]
+        : autoState(iv);
+
+      DATA.push({
+        id:Date.now()+Math.random(),
+        timestamp:ts,
+        cumulative_displacement:disp,
+        incremental_displacement:d.incr,
+        velocity:vel,
+        acceleration:d.accel,
+        inverse_velocity:iv,
+        state,
+        risk:
+          ri>=0 && p[ri]
+          ? p[ri]
+          : autoRisk(state),
+        notes:
+          ni>=0
+          ? p[ni]
+          : ''
+      });
+
+      added++;
+    });
+
+    DATA.sort(
+      (a,b)=>
+        new Date(a.timestamp)-
+        new Date(b.timestamp)
+    );
+
+    save();
+
+    updateStats();
+
+    renderTable();
+
+    toast(
+      `✓ ${added} baris CSV diimport!`,
+      'ok'
+    );
   };
+
   reader.readAsText(file);
 }
 
