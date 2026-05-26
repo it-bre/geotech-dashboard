@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>GEOTECHNICAL RISK & FAILURE FORECASTING SYSTEM</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;900&family=Share+Tech+Mono&family=Rajdhani:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
 :root{
@@ -613,18 +614,47 @@ td.num{color:var(--cyan);}td.tvel{color:var(--orange);}td.tiv{color:var(--amber)
           <div class="drop-zone-icon">⬆</div>
           <div class="drop-zone-txt">Drag & drop file di sini</div>
           <div class="drop-zone-sub">atau klik untuk pilih file</div>
-          <div class="drop-zone-sub" style="margin-top:4px;color:var(--cyan);">Format: .csv, .json, .xlsx, .xls</div>
+          <div style="display:flex;gap:6px;justify-content:center;margin-top:8px;flex-wrap:wrap;">
+            <span style="padding:2px 8px;border:1px solid rgba(0,255,136,.4);color:var(--green);font-size:9px;font-family:'Share Tech Mono',monospace;">.XLSX</span>
+            <span style="padding:2px 8px;border:1px solid rgba(0,245,255,.4);color:var(--cyan);font-size:9px;font-family:'Share Tech Mono',monospace;">.CSV</span>
+            <span style="padding:2px 8px;border:1px solid rgba(26,111,255,.4);color:var(--blue);font-size:9px;font-family:'Share Tech Mono',monospace;">.JSON</span>
+          </div>
         </div>
         <input type="file" id="file-input" accept=".csv,.json,.xlsx,.xls" style="display:none;" onchange="importFile(event)">
       </div>
     </div>
     <div class="pnl" style="margin-top:0;">
-      <div class="ptitle">◈ FORMAT CSV</div>
-      <div style="background:rgba(0,245,255,.03);border:1px solid rgba(0,245,255,.09);padding:11px;font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--txt2);line-height:1.8;overflow-x:auto;">
-        <span style="color:var(--cyan);">timestamp,cumulative_displacement,incremental_displacement,velocity,acceleration,state,risk,notes</span><br>
-        2026-05-25 08:00:00,140.2,,,,,, Survey pagi<br>
-        2026-05-25 08:30:00,141.8,1.6,3.2,0.01,,,<br>
-        <span style="color:var(--txt3);"># velocity/accel/state/risk bisa dikosongkan → auto-hitung</span>
+      <div class="ptitle">◈ FORMAT YANG DIDUKUNG</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:10px;">
+        <div style="background:rgba(0,255,136,.04);border:1px solid rgba(0,255,136,.2);padding:10px;">
+          <div style="font-family:'Orbitron',monospace;font-size:9px;font-weight:700;color:var(--green);letter-spacing:2px;margin-bottom:6px;">◈ EXCEL (.xlsx)</div>
+          <div style="font-size:10px;color:var(--txt2);line-height:1.7;font-family:'Share Tech Mono',monospace;">
+            Sheet aktif pertama akan dibaca.<br>
+            Baris pertama = header kolom.<br>
+            Kolom yang dikenali:<br>
+            <span style="color:var(--cyan);">timestamp, cumulative_displacement,<br>velocity, state, risk, notes</span><br>
+            Kolom lain di-skip otomatis.
+          </div>
+        </div>
+        <div style="background:rgba(0,245,255,.04);border:1px solid rgba(0,245,255,.2);padding:10px;">
+          <div style="font-family:'Orbitron',monospace;font-size:9px;font-weight:700;color:var(--cyan);letter-spacing:2px;margin-bottom:6px;">◈ CSV</div>
+          <div style="font-size:10px;color:var(--txt2);line-height:1.7;font-family:'Share Tech Mono',monospace;">
+            <span style="color:var(--cyan);">timestamp,cumulative_displacement,<br>incremental_displacement,velocity,<br>acceleration,state,risk,notes</span><br><br>
+            2026-05-25 08:00:00,140.2,,,,,, Pagi<br>
+            2026-05-25 08:30:00,141.8,1.6,3.2<br>
+            <span style="color:var(--txt3);"># kolom kosong = auto-calc</span>
+          </div>
+        </div>
+        <div style="background:rgba(26,111,255,.04);border:1px solid rgba(26,111,255,.2);padding:10px;">
+          <div style="font-family:'Orbitron',monospace;font-size:9px;font-weight:700;color:var(--blue);letter-spacing:2px;margin-bottom:6px;">◈ JSON</div>
+          <div style="font-size:10px;color:var(--txt2);line-height:1.7;font-family:'Share Tech Mono',monospace;">
+            File hasil export dari sistem ini.<br>
+            Format:<br>
+            <span style="color:var(--cyan);">{"data": [{...}, {...}]}</span><br><br>
+            Atau array langsung:<br>
+            <span style="color:var(--cyan);">[{...}, {...}]</span>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -875,446 +905,173 @@ function updateInputCharts(){
 // ══════════════════════════════════════════════════
 // IMPORT / EXPORT
 // ══════════════════════════════════════════════════
-
 function exportCSV(){
-  if(!DATA.length){
-    toast('Tidak ada data!','err');
-    return;
-  }
-
+  if(!DATA.length){toast('Tidak ada data!','err');return;}
   const h='timestamp,cumulative_displacement,incremental_displacement,velocity,acceleration,inverse_velocity,state,risk,notes';
-
-  const rows=DATA.map(r=>[
-    r.timestamp,
-    r.cumulative_displacement??'',
-    r.incremental_displacement??'',
-    r.velocity??'',
-    r.acceleration??'',
-    r.inverse_velocity??'',
-    r.state??'',
-    r.risk??'',
-    (r.notes||'').replace(/,/g,' ')
-  ].join(','));
-
-  dl(
-    new Blob(
-      [h+'\n'+rows.join('\n')],
-      {type:'text/csv'}
-    ),
-    `geotech_${new Date().toISOString().slice(0,10)}.csv`
-  );
-
+  const rows=DATA.map(r=>[r.timestamp,r.cumulative_displacement??'',r.incremental_displacement??'',
+    r.velocity??'',r.acceleration??'',r.inverse_velocity??'',r.state??'',r.risk??'',(r.notes||'').replace(/,/g,' ')].join(','));
+  dl(new Blob([h+'\n'+rows.join('\n')],{type:'text/csv'}),`geotech_${new Date().toISOString().slice(0,10)}.csv`);
   toast('✓ CSV exported!','ok');
 }
-
 function exportJSON(){
-
-  if(!DATA.length){
-    toast('Tidak ada data!','err');
-    return;
-  }
-
-  dl(
-    new Blob(
-      [
-        JSON.stringify({
-          exported:new Date().toISOString(),
-          data:DATA
-        },null,2)
-      ],
-      {type:'application/json'}
-    ),
-    `geotech_${new Date().toISOString().slice(0,10)}.json`
-  );
-
+  if(!DATA.length){toast('Tidak ada data!','err');return;}
+  dl(new Blob([JSON.stringify({exported:new Date().toISOString(),data:DATA},null,2)],{type:'application/json'}),`geotech_${new Date().toISOString().slice(0,10)}.json`);
   toast('✓ JSON exported!','ok');
 }
-
-function dl(blob,name){
-
-  const a=document.createElement('a');
-
-  a.href=URL.createObjectURL(blob);
-
-  a.download=name;
-
-  a.click();
-}
-
-function dragOver(e){
-
-  e.preventDefault();
-
-  document
-    .getElementById('drop-zone')
-    .classList
-    .add('dragover');
-}
-
-function dragLeave(){
-
-  document
-    .getElementById('drop-zone')
-    .classList
-    .remove('dragover');
-}
-
-function dropFile(e){
-
-  e.preventDefault();
-
-  dragLeave();
-
-  const f=e.dataTransfer.files[0];
-
-  if(f) processImport(f);
-}
-
-function importFile(e){
-
-  const f=e.target.files[0];
-
-  if(f) processImport(f);
-}
-
+function dl(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;a.click();}
+function dragOver(e){e.preventDefault();document.getElementById('drop-zone').classList.add('dragover');}
+function dragLeave(){document.getElementById('drop-zone').classList.remove('dragover');}
+function dropFile(e){e.preventDefault();dragLeave();const f=e.dataTransfer.files[0];if(f)processImport(f);}
+function importFile(e){const f=e.target.files[0];if(f)processImport(f);}
 function processImport(file){
+  const ext=file.name.split('.').pop().toLowerCase();
 
-  const ext=file.name
-    .split('.')
-    .pop()
-    .toLowerCase();
-
-  // =========================================
-  // IMPORT XLSX / XLS
-  // =========================================
-
-  if(ext==='xlsx' || ext==='xls'){
-
+  // ── XLSX / XLS ──────────────────────────────────────────
+  if(ext==='xlsx'||ext==='xls'){
+    if(typeof XLSX==='undefined'){toast('Library XLSX belum termuat, coba refresh halaman!','err');return;}
     const reader=new FileReader();
-
     reader.onload=e=>{
-
       try{
+        const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array',cellDates:true});
+        // Cari sheet RAW_DATA dulu, kalau tidak ada pakai sheet pertama
+        const sheetName=wb.SheetNames.includes('RAW_DATA')?'RAW_DATA':wb.SheetNames[0];
+        const ws=wb.Sheets[sheetName];
+        // Konversi ke array of objects, baris pertama yg berisi header kolom
+        // Skip baris kosong dan baris yg semua null
+        const raw=XLSX.utils.sheet_to_json(ws,{defval:'',raw:false});
+        if(!raw.length){toast('Sheet kosong atau format tidak dikenali!','err');return;}
 
-        const data=new Uint8Array(e.target.result);
+        // Normalize header keys (lowercase, trim)
+        const normalize=k=>k.toLowerCase().replace(/[\s\n\r]+/g,' ').trim();
+        const rows=raw.map(r=>{
+          const nr={};
+          Object.entries(r).forEach(([k,v])=>nr[normalize(k)]=v);
+          return nr;
+        }).filter(r=>Object.values(r).some(v=>v!==''&&v!=null));
 
-        const workbook=XLSX.read(data,{
-          type:'array'
-        });
+        // Find column by keyword
+        const findCol=(obj,keywords)=>Object.keys(obj).find(k=>keywords.some(kw=>k.includes(kw)))||null;
 
-        const sheetName=workbook.SheetNames[0];
+        let added=0,skipped=0;
+        rows.forEach(row=>{
+          const tkKey=findCol(row,['timestamp','time','waktu','tanggal']);
+          const dkKey=findCol(row,['cumulative','displacement','disp','kumulatif']);
+          if(!tkKey||!dkKey){skipped++;return;}
 
-        const sheet=workbook.Sheets[sheetName];
+          let tsRaw=row[tkKey];
+          let dispRaw=row[dkKey];
+          if(!tsRaw||dispRaw===''||dispRaw==null){skipped++;return;}
 
-        const rows=XLSX.utils.sheet_to_json(sheet,{
-          defval:''
-        });
+          // Parse timestamp — handle Excel date serial numbers
+          let ts='';
+          if(tsRaw instanceof Date){
+            ts=tsRaw.toISOString().slice(0,19).replace('T',' ');
+          } else if(typeof tsRaw==='number'){
+            // Excel date serial
+            const d=XLSX.SSF.parse_date_code(tsRaw);
+            if(d) ts=`${d.y}-${String(d.m).padStart(2,'0')}-${String(d.d).padStart(2,'0')} ${String(d.H).padStart(2,'0')}:${String(d.M).padStart(2,'0')}:${String(d.S).padStart(2,'0')}`;
+          } else {
+            ts=String(tsRaw).trim();
+          }
+          if(!ts){skipped++;return;}
 
-        if(!rows.length){
+          const disp=parseFloat(String(dispRaw).replace(/,/g,'.'));
+          if(isNaN(disp)){skipped++;return;}
 
-          toast('File Excel kosong!','err');
-
-          return;
-        }
-
-        let added=0;
-
-        rows.forEach(r=>{
-
-          const ts=
-            r.timestamp ||
-            r.Timestamp ||
-            r.time ||
-            r.Time;
-
-          const disp=parseFloat(
-            r.cumulative_displacement ||
-            r.displacement ||
-            r.disp ||
-            r.cum_disp
-          );
-
-          if(!ts || isNaN(disp)) return;
-
-          const prev=
-            DATA.length>0
-            ? DATA[DATA.length-1]
-            : null;
-
+          const prev=DATA.length>0?DATA[DATA.length-1]:null;
           const d=calcDerived(ts,disp,prev);
 
-          const vel=
-            r.velocity
-            ? parseFloat(r.velocity)
-            : d.vel;
+          const vkKey=findCol(row,['velocity','kecepatan','vel']);
+          const ikKey=findCol(row,['inverse','invers','iv']);
+          const akKey=findCol(row,['accel','akselerasi']);
+          const skKey=findCol(row,['state','status','kondisi']);
+          const rkKey=findCol(row,['risk','risiko']);
+          const nkKey=findCol(row,['note','catatan','flag','event']);
 
-          const iv=
-            r.inverse_velocity
-            ? parseFloat(r.inverse_velocity)
-            : (
-              vel && vel>0.0001
-              ? 1/vel
-              : d.iv
-            );
-
-          const state=
-            r.state ||
-            autoState(iv);
+          const velRaw=vkKey&&row[vkKey]!==''?parseFloat(String(row[vkKey]).replace(/,/g,'.')):null;
+          const vel=velRaw!=null&&!isNaN(velRaw)?velRaw:d.vel;
+          const ivRaw=ikKey&&row[ikKey]!==''?parseFloat(String(row[ikKey]).replace(/,/g,'.')):null;
+          const iv=ivRaw!=null&&!isNaN(ivRaw)?ivRaw:(vel&&vel>0.0001?1/vel:d.iv);
+          const stateRaw=skKey?String(row[skKey]).trim():'';
+          const state=stateRaw.match(/^S[1-4]$/)?stateRaw:autoState(iv);
+          const riskRaw=rkKey?String(row[rkKey]).trim().toUpperCase():'';
+          const risk=['LOW','MOD','HIGH','CRIT','MODERATE','CRITICAL'].includes(riskRaw)?
+            (riskRaw==='MODERATE'?'MOD':riskRaw==='CRITICAL'?'CRIT':riskRaw):autoRisk(state);
 
           DATA.push({
-            id:Date.now()+Math.random(),
-            timestamp:ts,
+            id:Date.now()+Math.random(),timestamp:ts,
             cumulative_displacement:disp,
             incremental_displacement:d.incr,
-            velocity:vel,
-            acceleration:d.accel,
-            inverse_velocity:iv,
-            state:state,
-            risk:r.risk || autoRisk(state),
-            notes:r.notes || ''
+            velocity:vel,acceleration:d.accel,
+            inverse_velocity:iv,state,risk,
+            notes:nkKey?String(row[nkKey]).trim():''
           });
-
           added++;
         });
 
-        DATA.sort(
-          (a,b)=>
-            new Date(a.timestamp)-
-            new Date(b.timestamp)
-        );
-
-        save();
-
-        updateStats();
-
-        renderTable();
-
-        toast(
-          `✓ ${added} baris Excel diimport!`,
-          'ok'
-        );
-
+        DATA.sort((a,b)=>new Date(a.timestamp)-new Date(b.timestamp));
+        save();updateStats();renderTable();
+        toast(`✓ ${added} baris diimport dari XLSX${skipped?` (${skipped} baris diskip)`:''}!`,'ok');
       }catch(err){
-
-        console.log(err);
-
-        toast(
-          'Gagal membaca file Excel!',
-          'err'
-        );
+        console.error(err);
+        toast('Error membaca file XLSX: '+err.message,'err');
       }
     };
-
     reader.readAsArrayBuffer(file);
-
     return;
   }
 
-  // =========================================
-  // IMPORT JSON
-  // =========================================
-
+  // ── JSON ──────────────────────────────────────────────────
   if(ext==='json'){
-
     const reader=new FileReader();
-
     reader.onload=e=>{
-
       try{
-
         const p=JSON.parse(e.target.result);
-
-        const rows=p.data || p;
-
-        if(!Array.isArray(rows)){
-
-          toast(
-            'JSON tidak valid!',
-            'err'
-          );
-
-          return;
-        }
-
-        DATA=[
-          ...DATA,
-          ...rows.map(r=>({
-            ...r,
-            id:Date.now()+Math.random()
-          }))
-        ];
-
-        DATA.sort(
-          (a,b)=>
-            new Date(a.timestamp)-
-            new Date(b.timestamp)
-        );
-
-        save();
-
-        updateStats();
-
-        renderTable();
-
-        toast(
-          `✓ ${rows.length} baris JSON diimport!`,
-          'ok'
-        );
-
-      }catch{
-
-        toast(
-          'Error parsing JSON!',
-          'err'
-        );
-      }
+        const rows=p.data||p;
+        if(!Array.isArray(rows)){toast('Format JSON tidak valid!','err');return;}
+        DATA=[...DATA,...rows.map(r=>({...r,id:Date.now()+Math.random()}))];
+        DATA.sort((a,b)=>new Date(a.timestamp)-new Date(b.timestamp));
+        save();updateStats();renderTable();
+        toast(`✓ ${rows.length} baris diimport dari JSON!`,'ok');
+      }catch{toast('Error parsing JSON!','err');}
     };
-
     reader.readAsText(file);
-
     return;
   }
 
-  // =========================================
-  // IMPORT CSV
-  // =========================================
-
+  // ── CSV ───────────────────────────────────────────────────
   const reader=new FileReader();
-
   reader.onload=e=>{
-
-    const c=e.target.result;
-
-    const lines=c
-      .split('\n')
-      .filter(l=>l.trim());
-
-    const hdr=lines[0]
-      .toLowerCase()
-      .split(',')
-      .map(h=>h.trim());
-
-    const ti=hdr.findIndex(h=>
-      h.includes('timestamp') ||
-      h.includes('time')
-    );
-
-    const di=hdr.findIndex(h=>
-      h.includes('cumulative') ||
-      h.includes('disp')
-    );
-
-    if(ti<0 || di<0){
-
-      toast(
-        'Kolom timestamp/displacement tidak ditemukan!',
-        'err'
-      );
-
-      return;
-    }
-
+    const lines=e.target.result.split('\n').filter(l=>l.trim()&&!l.trim().startsWith('#'));
+    if(!lines.length){toast('File CSV kosong!','err');return;}
+    const hdr=lines[0].toLowerCase().split(',').map(h=>h.trim());
+    const ti=hdr.findIndex(h=>h.includes('timestamp')||h.includes('time')||h.includes('waktu'));
+    const di=hdr.findIndex(h=>h.includes('cumulative')||h.includes('disp'));
+    if(ti<0||di<0){toast('Kolom timestamp/displacement tidak ditemukan!','err');return;}
     let added=0;
-
     lines.slice(1).forEach(line=>{
-
-      const p=line
-        .split(',')
-        .map(s=>s.trim());
-
-      const ts=p[ti];
-
-      const disp=parseFloat(p[di]);
-
-      if(!ts || isNaN(disp)) return;
-
-      const vi=hdr.findIndex(h=>
-        h.includes('velocity') &&
-        !h.includes('inverse')
-      );
-
-      const ii=hdr.findIndex(h=>
-        h.includes('inverse')
-      );
-
-      const si=hdr.findIndex(h=>
-        h.includes('state')
-      );
-
-      const ri=hdr.findIndex(h=>
-        h.includes('risk')
-      );
-
-      const ni=hdr.findIndex(h=>
-        h.includes('note')
-      );
-
-      const prev=
-        DATA.length>0
-        ? DATA[DATA.length-1]
-        : null;
-
+      const p=line.split(',').map(s=>s.trim());
+      const ts=p[ti]; const disp=parseFloat(p[di]);
+      if(!ts||isNaN(disp))return;
+      const vi=hdr.findIndex(h=>h.includes('velocity')&&!h.includes('inverse'));
+      const ii=hdr.findIndex(h=>h.includes('inverse'));
+      const si=hdr.findIndex(h=>h.includes('state'));
+      const ri=hdr.findIndex(h=>h.includes('risk'));
+      const ni=hdr.findIndex(h=>h.includes('note'));
+      const prev=DATA.length>0?DATA[DATA.length-1]:null;
       const d=calcDerived(ts,disp,prev);
-
-      const vel=
-        vi>=0 && p[vi]
-        ? parseFloat(p[vi])
-        : d.vel;
-
-      const iv=
-        ii>=0 && p[ii]
-        ? parseFloat(p[ii])
-        : (
-          vel && vel>0.0001
-          ? 1/vel
-          : d.iv
-        );
-
-      const state=
-        si>=0 && p[si]
-        ? p[si]
-        : autoState(iv);
-
-      DATA.push({
-        id:Date.now()+Math.random(),
-        timestamp:ts,
-        cumulative_displacement:disp,
-        incremental_displacement:d.incr,
-        velocity:vel,
-        acceleration:d.accel,
-        inverse_velocity:iv,
-        state,
-        risk:
-          ri>=0 && p[ri]
-          ? p[ri]
-          : autoRisk(state),
-        notes:
-          ni>=0
-          ? p[ni]
-          : ''
-      });
-
+      const vel=vi>=0&&p[vi]?parseFloat(p[vi]):d.vel;
+      const iv=ii>=0&&p[ii]?parseFloat(p[ii]):(vel&&vel>0.0001?1/vel:d.iv);
+      const state=si>=0&&p[si]&&p[si].match(/^S[1-4]$/)?p[si]:autoState(iv);
+      DATA.push({id:Date.now()+Math.random(),timestamp:ts,cumulative_displacement:disp,
+        incremental_displacement:d.incr,velocity:vel,acceleration:d.accel,inverse_velocity:iv,
+        state,risk:ri>=0&&p[ri]?p[ri]:autoRisk(state),notes:ni>=0?p[ni]:''});
       added++;
     });
-
-    DATA.sort(
-      (a,b)=>
-        new Date(a.timestamp)-
-        new Date(b.timestamp)
-    );
-
-    save();
-
-    updateStats();
-
-    renderTable();
-
-    toast(
-      `✓ ${added} baris CSV diimport!`,
-      'ok'
-    );
+    DATA.sort((a,b)=>new Date(a.timestamp)-new Date(b.timestamp));
+    save();updateStats();renderTable();
+    toast(`✓ ${added} baris diimport dari CSV!`,'ok');
   };
-
   reader.readAsText(file);
 }
 
