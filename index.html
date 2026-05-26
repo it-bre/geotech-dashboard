@@ -77,11 +77,11 @@ body{background:var(--navy);color:var(--txt);font-family:'Rajdhani',sans-serif;f
 /* ════════════════════════════════════════════════════════
    PAGE 1 — DASHBOARD
 ════════════════════════════════════════════════════════ */
-.dash-grid{display:grid;grid-template-columns:255px 1fr 275px;gap:10px;min-height:680px;}
-.lp,.rp{display:flex;flex-direction:column;gap:7px;overflow-y:auto;max-height:calc(100vh - 120px);}
-.cp{display:flex;flex-direction:column;gap:9px;}
-.cpnl{flex:1;background:var(--panel);border:1px solid var(--border);padding:9px 11px;position:relative;min-height:0;}
-.ci{position:relative;height:calc(100% - 28px);min-height:100px;}
+.dash-grid{display:grid;grid-template-columns:255px 1fr 275px;gap:10px;}
+.lp,.rp{display:flex;flex-direction:column;gap:7px;overflow-y:auto;height:100%;}
+.cp{display:flex;flex-direction:column;gap:9px;height:100%;min-height:0;}
+.cpnl{flex:1;background:var(--panel);border:1px solid var(--border);padding:9px 11px;position:relative;min-height:0;overflow:hidden;}
+.ci{position:relative;height:calc(100% - 28px);min-height:80px;}
 
 /* metric blocks */
 .mb{background:rgba(0,245,255,.04);border:1px solid rgba(0,245,255,.12);padding:7px 10px;position:relative;}
@@ -279,7 +279,7 @@ td.num{color:var(--cyan);}td.tvel{color:var(--orange);}td.tiv{color:var(--amber)
 <div class="wrap">
 
   <!-- MAIN GRID -->
-  <div class="dash-grid" style="margin-bottom:10px;">
+  <div class="dash-grid" style="margin-bottom:10px;height:calc(100vh - 130px);min-height:600px;max-height:900px;">
 
     <!-- LEFT -->
     <div class="lp pnl">
