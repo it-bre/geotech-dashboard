@@ -1397,6 +1397,27 @@ function buildDashCharts(sorted){
   const data=sorted.filter((_,i)=>i%step===0||i===sorted.length-1);
   const labels=data.map(r=>r.timestamp.slice(5,16));
 
+  // ── Running maximum displacement (monoton naik, hilangkan noise turun) ──
+  let runMax=0;
+  const dispMono=data.map(r=>{
+    const v=r.cumulative_displacement??0;
+    runMax=Math.max(runMax,v);
+    return runMax;
+  });
+
+  // ── Velocity: clamp outlier ekstrem (cap ±3× median absolute deviation) ──
+  const velRaw=data.map(r=>r.velocity??null);
+  const velValid=velRaw.filter(v=>v!=null&&isFinite(v));
+  let velCapped=velRaw;
+  if(velValid.length>4){
+    const sorted_v=[...velValid].sort((a,b)=>a-b);
+    const median=sorted_v[Math.floor(sorted_v.length/2)];
+    const mad=([...velValid].map(v=>Math.abs(v-median)).sort((a,b)=>a-b))[Math.floor(velValid.length/2)];
+    const cap=median+10*Math.max(mad,1);
+    const floor=median-10*Math.max(mad,1);
+    velCapped=velRaw.map(v=>v==null?null:Math.max(floor,Math.min(cap,v)));
+  }
+
   const mkD=(id,ds,opts={})=>{
     if(dashCharts[id]) dashCharts[id].destroy();
     dashCharts[id]=new Chart(document.getElementById(id),{type:'line',data:{labels,datasets:ds},
@@ -1410,33 +1431,55 @@ function buildDashCharts(sorted){
   };
 
   mkD('d-c1',[
-    {label:'Displacement',data:data.map(r=>r.cumulative_displacement),borderColor:'#00f5ff',backgroundColor:'rgba(0,245,255,.06)',borderWidth:2,fill:true,tension:0.3,yAxisID:'y',pointRadius:1},
-    {label:'Velocity',data:data.map(r=>r.velocity),borderColor:'#ff6600',backgroundColor:'rgba(0,0,0,0)',borderWidth:1.5,fill:false,tension:0.3,yAxisID:'y2',pointRadius:1,borderDash:[4,2]}
+    {label:'Displacement (mm)',data:dispMono,borderColor:'#00f5ff',backgroundColor:'rgba(0,245,255,.07)',borderWidth:2,fill:true,tension:0.4,yAxisID:'y',pointRadius:0},
+    {label:'Velocity (mm/h)',data:velCapped,borderColor:'#ff6600',backgroundColor:'rgba(0,0,0,0)',borderWidth:1.5,fill:false,tension:0.3,yAxisID:'y2',pointRadius:0,borderDash:[4,2],spanGaps:true}
   ],{yc:'#00b8c4',yLabel:'Displacement (mm)',y2:true,y2c:'#b84800',y2Label:'Velocity (mm/h)'});
 
   const th10=Array(data.length).fill(0.10);
   const th05=Array(data.length).fill(0.05);
   const th01=Array(data.length).fill(0.01);
+
+  // IV: cap nilai ekstrem > 10 (artinya slope sangat stabil, tidak perlu tampil tinggi sekali)
+  const ivCapped=data.map(r=>{
+    const v=r.inverse_velocity;
+    if(v==null||!isFinite(v)) return null;
+    return Math.min(v, 10); // cap di 10 h/mm untuk keterbacaan
+  });
+
   mkD('d-c2',[
-    {label:'IV',data:data.map(r=>r.inverse_velocity),borderColor:'#00f5ff',backgroundColor:'rgba(0,245,255,.05)',borderWidth:2,fill:true,tension:0.2,pointRadius:2,
-     pointBackgroundColor:data.map(r=>!r.inverse_velocity?'#888':r.inverse_velocity<=0.01?'#ff2244':r.inverse_velocity<=0.05?'#ff6600':r.inverse_velocity<=0.10?'#ffaa00':'#00f5ff'),spanGaps:true},
-    {label:'IV=0.10',data:th10,borderColor:'rgba(0,100,255,.5)',borderWidth:1,borderDash:[5,3],pointRadius:0,fill:false},
-    {label:'IV=0.05',data:th05,borderColor:'rgba(255,100,0,.5)',borderWidth:1,borderDash:[5,3],pointRadius:0,fill:false},
-    {label:'IV=0.01',data:th01,borderColor:'rgba(255,34,68,.5)',borderWidth:1,borderDash:[5,3],pointRadius:0,fill:false},
+    {label:'IV',data:ivCapped,borderColor:'#00f5ff',backgroundColor:'rgba(0,245,255,.05)',borderWidth:2,fill:true,tension:0.2,pointRadius:0,
+     pointBackgroundColor:ivCapped.map(v=>!v?'#888':v<=0.01?'#ff2244':v<=0.05?'#ff6600':v<=0.10?'#ffaa00':'#00f5ff'),spanGaps:true},
+    {label:'IV=0.10',data:th10,borderColor:'rgba(0,100,255,.6)',borderWidth:1.5,borderDash:[5,3],pointRadius:0,fill:false},
+    {label:'IV=0.05',data:th05,borderColor:'rgba(255,100,0,.6)',borderWidth:1.5,borderDash:[5,3],pointRadius:0,fill:false},
+    {label:'IV=0.01',data:th01,borderColor:'rgba(255,34,68,.6)',borderWidth:1.5,borderDash:[5,3],pointRadius:0,fill:false},
   ],{yc:'#00b8c4',yLabel:'IV (h/mm)',y2:false});
   dashCharts['d-c2'].options.plugins.legend={display:true,position:'top',labels:{color:'#3a6680',boxWidth:14,padding:8,font:{size:8}}};
   dashCharts['d-c2'].update();
 
-  const accelData=data.map(r=>r.acceleration!=null?Math.max(-5,Math.min(5,r.acceleration)):null);
+  // Acceleration: clamp ke ±5 untuk keterbacaan, skip null
+  const accelRaw=data.map(r=>r.acceleration);
+  const accelValid=accelRaw.filter(v=>v!=null&&isFinite(v));
+  let accelClip=5;
+  if(accelValid.length>4){
+    const sortedA=[...accelValid].map(Math.abs).sort((a,b)=>a-b);
+    const p90=sortedA[Math.floor(sortedA.length*0.90)];
+    accelClip=Math.max(p90*1.5,0.01); // clip di 1.5× persentil 90
+  }
+  const accelData=accelRaw.map(v=>v==null||!isFinite(v)?null:Math.max(-accelClip,Math.min(accelClip,v)));
+
   if(dashCharts['d-c3']) dashCharts['d-c3'].destroy();
   dashCharts['d-c3']=new Chart(document.getElementById('d-c3'),{
-    type:'bar',data:{labels,datasets:[{label:'Acceleration',data:accelData,
-      backgroundColor:accelData.map(v=>v==null?'transparent':Math.abs(v)>1?'rgba(255,34,68,.7)':Math.abs(v)>0.2?'rgba(255,170,0,.6)':'rgba(0,255,136,.5)'),
+    type:'bar',
+    data:{labels,datasets:[{label:'Acceleration',data:accelData,
+      backgroundColor:accelData.map(v=>v==null?'transparent':Math.abs(v)>accelClip*0.6?'rgba(255,34,68,.75)':Math.abs(v)>accelClip*0.2?'rgba(255,170,0,.65)':'rgba(0,255,136,.5)'),
       borderWidth:0.5}]},
     options:{responsive:true,maintainAspectRatio:false,
-      plugins:{legend:{display:false},tooltip:{backgroundColor:'rgba(5,13,26,.92)',borderColor:'rgba(0,245,255,.3)',borderWidth:1,titleColor:'#00f5ff',bodyColor:'#7ab8d4'}},
+      plugins:{legend:{display:false},
+        tooltip:{backgroundColor:'rgba(5,13,26,.92)',borderColor:'rgba(0,245,255,.3)',borderWidth:1,titleColor:'#00f5ff',bodyColor:'#7ab8d4',
+          callbacks:{label:ctx=>' '+accelRaw[ctx.dataIndex]?.toFixed(5)+' mm/h² (raw)'}}},
       scales:{x:{grid:{color:'rgba(0,245,255,.04)'},ticks:{color:'#3a6680',maxRotation:45,maxTicksLimit:10}},
-              y:{grid:{color:'rgba(0,245,255,.05)'},ticks:{color:'#00b860'},title:{display:true,text:'mm/h² (clipped ±5)',color:'#00b860',font:{size:9}}}}}
+              y:{grid:{color:'rgba(0,245,255,.05)'},ticks:{color:'#00b860'},
+                 title:{display:true,text:'mm/h² (auto-clipped)',color:'#00b860',font:{size:9}}}}}
   });
 }
 
