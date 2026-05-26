@@ -5,7 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>GEOTECHNICAL RISK & FAILURE FORECASTING SYSTEM</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>  
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;900&family=Share+Tech+Mono&family=Rajdhani:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
 :root{
@@ -614,9 +613,9 @@ td.num{color:var(--cyan);}td.tvel{color:var(--orange);}td.tiv{color:var(--amber)
           <div class="drop-zone-icon">⬆</div>
           <div class="drop-zone-txt">Drag & drop file di sini</div>
           <div class="drop-zone-sub">atau klik untuk pilih file</div>
-          <div class="drop-zone-sub" style="margin-top:4px;color:var(--cyan);">Format: .csv, .json, .xlsx, .xls</div>
+          <div class="drop-zone-sub" style="margin-top:4px;color:var(--cyan);">Format: .csv atau .json</div>
         </div>
-        <input type="file" id="file-input" accept=".csv,.json,.xlsx,.xls" style="display:none;" onchange="importFile(event)">
+        <input type="file" id="file-input" accept=".csv,.json" style="display:none;" onchange="importFile(event)">
       </div>
     </div>
     <div class="pnl" style="margin-top:0;">
@@ -894,78 +893,46 @@ function dragOver(e){e.preventDefault();document.getElementById('drop-zone').cla
 function dragLeave(){document.getElementById('drop-zone').classList.remove('dragover');}
 function dropFile(e){e.preventDefault();dragLeave();const f=e.dataTransfer.files[0];if(f)processImport(f);}
 function importFile(e){const f=e.target.files[0];if(f)processImport(f);}
-// GANTI SELURUH FUNCTION processImport(file) MENJADI INI
-        const vi = hdr.findIndex(h =>
-          h.includes('velocity') &&
-          !h.includes('inverse')
-        );
-
-        const ii = hdr.findIndex(h =>
-          h.includes('inverse')
-        );
-
-        const si = hdr.findIndex(h =>
-          h.includes('state')
-        );
-
-        const ri = hdr.findIndex(h =>
-          h.includes('risk')
-        );
-
-        const ni = hdr.findIndex(h =>
-          h.includes('note')
-        );
-
-        const prev = DATA.length > 0
-          ? DATA[DATA.length - 1]
-          : null;
-
-        const d = calcDerived(ts, disp, prev);
-
-        const vel = vi >= 0 && p[vi]
-          ? parseFloat(p[vi])
-          : d.vel;
-
-        const iv = ii >= 0 && p[ii]
-          ? parseFloat(p[ii])
-          : (vel && vel > 0.0001 ? 1 / vel : d.iv);
-
-        const state = si >= 0 && p[si]
-          ? p[si]
-          : autoState(iv);
-
-        DATA.push({
-          id: Date.now() + Math.random(),
-          timestamp: ts,
-          cumulative_displacement: disp,
-          incremental_displacement: d.incr,
-          velocity: vel,
-          acceleration: d.accel,
-          inverse_velocity: iv,
-          state,
-          risk: ri >= 0 && p[ri]
-            ? p[ri]
-            : autoRisk(state),
-          notes: ni >= 0
-            ? p[ni]
-            : ''
-        });
-
+function processImport(file){
+  const reader=new FileReader();
+  reader.onload=e=>{
+    const c=e.target.result;
+    if(file.name.endsWith('.json')){
+      try{const p=JSON.parse(c);const rows=p.data||p;if(!Array.isArray(rows)){toast('JSON tidak valid!','err');return;}
+        DATA=[...DATA,...rows.map(r=>({...r,id:Date.now()+Math.random()}))];
+        DATA.sort((a,b)=>new Date(a.timestamp)-new Date(b.timestamp));
+        save();updateStats();renderTable();toast(`✓ ${rows.length} baris diimport!`,'ok');
+      }catch{toast('Error parsing JSON!','err');}
+    } else {
+      const lines=c.split('\n').filter(l=>l.trim());
+      const hdr=lines[0].toLowerCase().split(',').map(h=>h.trim());
+      const ti=hdr.findIndex(h=>h.includes('timestamp')||h.includes('time'));
+      const di=hdr.findIndex(h=>h.includes('cumulative')||h.includes('disp'));
+      if(ti<0||di<0){toast('Kolom timestamp/displacement tidak ditemukan!','err');return;}
+      let added=0;
+      lines.slice(1).forEach(line=>{
+        const p=line.split(',').map(s=>s.trim());
+        const ts=p[ti];const disp=parseFloat(p[di]);
+        if(!ts||isNaN(disp))return;
+        const vi=hdr.findIndex(h=>h.includes('velocity')&&!h.includes('inverse'));
+        const ii=hdr.findIndex(h=>h.includes('inverse'));
+        const si=hdr.findIndex(h=>h.includes('state'));
+        const ri=hdr.findIndex(h=>h.includes('risk'));
+        const ni=hdr.findIndex(h=>h.includes('note'));
+        const prev=DATA.length>0?DATA[DATA.length-1]:null;
+        const d=calcDerived(ts,disp,prev);
+        const vel=vi>=0&&p[vi]?parseFloat(p[vi]):d.vel;
+        const iv=ii>=0&&p[ii]?parseFloat(p[ii]):(vel&&vel>0.0001?1/vel:d.iv);
+        const state=si>=0&&p[si]?p[si]:autoState(iv);
+        DATA.push({id:Date.now()+Math.random(),timestamp:ts,cumulative_displacement:disp,
+          velocity:vel,acceleration:d.accel,inverse_velocity:iv,
+          state,risk:ri>=0&&p[ri]?p[ri]:autoRisk(state),notes:ni>=0?p[ni]:''});
         added++;
       });
-
-      DATA.sort((a,b)=>
-        new Date(a.timestamp)-new Date(b.timestamp)
-      );
-
-      save();
-      updateStats();
-      renderTable();
-
-      toast(`✓ ${added} baris diimport!`,'ok');
+      DATA.sort((a,b)=>new Date(a.timestamp)-new Date(b.timestamp));
+      save();updateStats();renderTable();toast(`✓ ${added} baris diimport!`,'ok');
     }
   };
-
   reader.readAsText(file);
 }
 
